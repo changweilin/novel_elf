@@ -4,11 +4,16 @@
 
 const { useState: useStateLib, useMemo: useMemoLib } = React;
 
+function trText(s) {
+  return window.AEVEN_I18N?.t ? window.AEVEN_I18N.t(s) : s;
+}
+
 // ── Tiny markdown renderer ────────────────────────────────────────
 // Supports: # H1, ## H2, paragraphs, **bold**, *italic*, > blockquote,
 // horizontal rule (---), and the Obsidian-style ![[ill_id]] illustration directive.
 // We keep it intentionally small — it's a writing surface, not a CMS.
 function renderInline(s) {
+  s = trText(s);
   const parts = [];
   let i = 0; let key = 0;
   const push = (node) => parts.push(<React.Fragment key={key++}>{node}</React.Fragment>);
@@ -28,7 +33,7 @@ function renderInline(s) {
 }
 
 function renderMd(md, illustrations) {
-  if (!md) return <p style={{ fontStyle: "italic", color: "#7a6b54" }}>— this page is bare —</p>;
+  if (!md) return <p style={{ fontStyle: "italic", color: "#7a6b54" }}>{trText("— this page is bare —")}</p>;
   const lines = md.split(/\n/);
   const out = [];
   let para = [];
@@ -51,8 +56,8 @@ function renderMd(md, illustrations) {
       const ill = (illustrations || []).find((x) => x.id === id);
       out.push(
         <div key={"i" + key++} className="ill-slot">
-          <span className="ill-slot-label">illustration · {id}</span>
-          {ill && <span className="ill-slot-cap">{ill.caption}</span>}
+          <span className="ill-slot-label">{trText("illustration")} · {id}</span>
+          {ill && <span className="ill-slot-cap">{trText(ill.caption)}</span>}
         </div>
       );
       continue;
@@ -60,6 +65,11 @@ function renderMd(md, illustrations) {
     if (trim.startsWith("# ")) { flushPara(); out.push(<h1 key={"h" + key++}>{renderInline(trim.slice(2))}</h1>); continue; }
     if (trim.startsWith("## ")) { flushPara(); out.push(<h2 key={"h" + key++}>{renderInline(trim.slice(3))}</h2>); continue; }
     if (trim === "---") { flushPara(); out.push(<hr key={"hr" + key++} />); continue; }
+    if (trim.startsWith("- ")) {
+      flushPara();
+      out.push(<p key={"li" + key++} className="md-list-item">• {renderInline(trim.slice(2))}</p>);
+      continue;
+    }
     if (trim.startsWith("> ")) {
       flushPara();
       out.push(<blockquote key={"bq" + key++}>{renderInline(trim.slice(2))}</blockquote>);

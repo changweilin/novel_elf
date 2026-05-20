@@ -215,7 +215,7 @@ const App = () => {
   };
 
   const onReset = () => {
-    if (!confirm("Re-cast the world to its original seed? Edits will be lost.")) return;
+    if (!confirm(window.AEVEN_I18N?.t("Re-cast the world to its original seed? Edits will be lost.") || "Re-cast the world to its original seed? Edits will be lost.")) return;
     const fresh = JSON.parse(JSON.stringify(window.WORLD_SEED));
     setWorld(fresh); setCurrentYear(1209); setFocusId("ev_arrival");
   };
@@ -316,7 +316,7 @@ const App = () => {
           <span className="folio-num">I·II</span> The Atelier
         </button>
         <button className={`folio-tab ${folio === "library" ? "on" : ""}`} onClick={() => setFolio("library")}>
-          <span className="folio-num">III</span> The Library &nbsp;·&nbsp; 書冊
+          <span className="folio-num">III</span> The Library · Books
         </button>
       </div>
     </div>
@@ -394,7 +394,7 @@ const App = () => {
       {/* CENTER — Map + Timeline */}
       <main className="stage">
         <div className="topbar">
-          <h1>The Atelier <em>of Aevenmere</em></h1>
+          <h1>The Atelier of Aevenmere</h1>
           <div className="layer-toggles">
             {[
               { k: "countries", l: "Countries" },

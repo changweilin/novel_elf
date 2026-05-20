@@ -58,6 +58,7 @@ window.AVN = (function () {
     return (world.events || []).filter((ev) => (ev.participants || []).includes(id));
   }
   function yearLabel(y) {
+    if (window.AEVEN_I18N?.yearLabel) return window.AEVEN_I18N.yearLabel(y);
     return y < 0 ? `${-y} BR` : `${y} AR`;
   }
   function placeOf(world, locOrPlaceId) {

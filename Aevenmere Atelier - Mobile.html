@@ -118,7 +118,7 @@
 <div class="showcase">
   <header class="showcase-h">
     <div class="eyebrow">Folio IV · 手機版 · A pocket atlas</div>
-    <h1>The Atelier <em>in the palm</em></h1>
+    <h1>The Atelier in the palm</h1>
     <p>The cartographer's bench, made small. Walk the years with a thumb, lift a leaf in the rain, summon a soul from the back of the boat.</p>
   </header>
 
@@ -136,6 +136,7 @@
 <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
 
 <!-- Data + core helpers from the atelier -->
+<script src="i18n.js?v=4"></script>
 <script src="data.js"></script>
 <script src="core.js"></script>
 <script src="draw.js"></script>
@@ -213,7 +214,7 @@
             value={t.deviceScale} onChange={(v) => setTweak("deviceScale", v)} />
           <window.TweakSection label="Data" />
           <window.TweakButton label="↺ Re-cast the world" onClick={() => {
-            if (!confirm("Reset Aevenmere to its seed? Local edits will be lost.")) return;
+            if (!confirm(window.AEVEN_I18N?.t("Reset Aevenmere to its seed? Local edits will be lost.") || "Reset Aevenmere to its seed? Local edits will be lost.")) return;
             try {
               localStorage.removeItem("aevenmere.world.v2");
               localStorage.removeItem("aevenmere.year.v2");

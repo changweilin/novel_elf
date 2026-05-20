@@ -10,6 +10,10 @@ const { useState, useEffect, useMemo, useRef } = React;
 const LSM_WORLD = "aevenmere.world.v2";
 const LSM_YEAR  = "aevenmere.year.v2";
 
+function mobT(s) {
+  return window.AEVEN_I18N?.t ? window.AEVEN_I18N.t(s) : s;
+}
+
 const KIND_LABEL = {
   event: "Event", character: "Character",
   organization: "Organization", country: "Country", region: "Region"
@@ -128,9 +132,9 @@ function MobileApp() {
           {books.map((bk) => (
             <React.Fragment key={bk.id}>
               <div className="mob-lib-chap" style={{ background: "#15110b", color: "var(--paper)", border: "1px solid #2a2218" }}>
-                <div className="mob-lib-num" style={{ color: "var(--gold-2)" }}>Book · {bk.subtitle || ""}</div>
-                <div className="mob-lib-title" style={{ color: "var(--paper)" }}>{bk.title}</div>
-                {bk.blurb && <div className="mob-lib-blurb" style={{ color: "#c9b896" }}>{bk.blurb}</div>}
+                <div className="mob-lib-num" style={{ color: "var(--gold-2)" }}>{mobT("Book")} · {mobT(bk.subtitle || "")}</div>
+                <div className="mob-lib-title" style={{ color: "var(--paper)" }}>{mobT(bk.title)}</div>
+                {bk.blurb && <div className="mob-lib-blurb" style={{ color: "#c9b896" }}>{mobT(bk.blurb)}</div>}
                 <div className="mob-lib-meta" style={{ color: "var(--slate)" }}>
                   {(bk.volumes || []).length} volumes
                   {bk.year != null ? ` · ${AVN.yearLabel(bk.year)}` : ""}
@@ -143,12 +147,12 @@ function MobileApp() {
                   return (
                     <div key={ch.id} className="mob-lib-chap">
                       <div className="mob-lib-num">
-                        Chapter {String(chapterIdx).padStart(2, "0")} · {vol.title}
+                        {mobT("Chapter")} {String(chapterIdx).padStart(2, "0")} · {mobT(vol.title)}
                       </div>
-                      <div className="mob-lib-title">{ch.title}</div>
+                      <div className="mob-lib-title">{mobT(ch.title)}</div>
                       {ch.md && (
                         <div className="mob-lib-blurb">
-                          {(ch.md.split("\n").find((l) => l.trim() && !l.startsWith("#") && !l.startsWith("!")) || "").slice(0, 200)}…
+                          {mobT((ch.md.split("\n").find((l) => l.trim() && !l.startsWith("#") && !l.startsWith("!")) || "").replace(/^- /, "")).slice(0, 200)}…
                         </div>
                       )}
                       <div className="mob-lib-meta">
@@ -542,8 +546,7 @@ function MobileLeaf({ world, currentYear, era, hint, setHint, story, setStory, b
             <span className="mob-sheet-pill">{counts.countries} realms</span>
           </div>
           <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", color: "#c9b896", fontSize: 13.5, lineHeight: 1.55, margin: "8px 0 0" }}>
-            Aevenmere, the sundered reach: highlands and marsh, ash and tide. Open
-            a folio. Walk the years. Stay until something asks to be named.
+            {mobT("Aevenmere, the sundered reach: highlands and marsh, ash and tide. Open a folio. Walk the years. Stay until something asks to be named.")}
           </p>
         </section>
       </div>
