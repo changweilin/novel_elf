@@ -1,0 +1,262 @@
+/* Timeline-specific styles. Loaded after styles.css. */
+
+.timeline {
+  background: linear-gradient(180deg, #1a1610 0%, #15110b 100%);
+  border: 1px solid #2a2218;
+  padding: 14px 18px 12px;
+}
+.tl-head {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  margin-bottom: 10px; gap: 16px;
+}
+.tl-head-left { display: flex; align-items: baseline; gap: 14px; }
+.tl-label { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.28em; color: var(--slate); text-transform: uppercase; }
+.tl-year {
+  font-family: var(--display); font-size: 28px; letter-spacing: 0.06em;
+  color: var(--paper); line-height: 1; font-weight: 500;
+}
+.tl-era { font-family: var(--serif); font-style: italic; font-size: 15px; color: var(--gold-2); }
+.tl-head-right { display: flex; align-items: center; gap: 10px; }
+.tl-window { display: flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.18em; color: var(--slate); text-transform: uppercase; }
+.tl-window input[type="range"] {
+  appearance: none; -webkit-appearance: none; background: transparent;
+  width: 160px; height: 16px;
+}
+.tl-window input[type="range"]::-webkit-slider-runnable-track {
+  height: 2px; background: #3a2d20;
+}
+.tl-window input[type="range"]::-webkit-slider-thumb {
+  appearance: none; -webkit-appearance: none;
+  width: 12px; height: 12px; background: var(--gold); border: 1px solid var(--ink);
+  margin-top: -5px; cursor: pointer; border-radius: 50%;
+}
+.tl-window input[type="range"]::-moz-range-track { height: 2px; background: #3a2d20; }
+.tl-window input[type="range"]::-moz-range-thumb { width: 12px; height: 12px; background: var(--gold); border: 1px solid var(--ink); cursor: pointer; border-radius: 50%; }
+.tl-window-val { color: var(--paper-dim); min-width: 56px; }
+
+.tl-rail-wrap {
+  position: relative; height: 86px; cursor: ew-resize;
+  user-select: none;
+  border-top: 1px solid #2a2218;
+  border-bottom: 1px solid #2a2218;
+  padding: 12px 0;
+}
+.tl-bands { position: absolute; top: 12px; left: 0; right: 0; height: 32px; display: block; }
+.tl-band {
+  position: absolute; top: 0; height: 32px;
+  opacity: 0.32; border-right: 1px solid rgba(0,0,0,0.4);
+  display: flex; flex-direction: column; justify-content: center; padding: 0 8px;
+  overflow: hidden;
+  transition: opacity 200ms ease;
+}
+.tl-band:hover { opacity: 0.5; }
+.tl-band-name {
+  font-family: var(--display); font-size: 10px; letter-spacing: 0.18em;
+  color: var(--ink); text-transform: uppercase; white-space: nowrap; text-overflow: ellipsis; overflow: hidden;
+}
+.tl-band-span {
+  font-family: var(--mono); font-size: 8px; letter-spacing: 0.15em;
+  color: var(--ink); opacity: 0.7; white-space: nowrap;
+}
+
+.tl-ticks { position: absolute; top: 0; bottom: 0; left: 0; right: 0; pointer-events: none; }
+.tl-tick { position: absolute; top: 0; bottom: 0; width: 1px; background: #3a2d20; }
+
+.tl-window-overlay {
+  position: absolute; top: 8px; bottom: 8px;
+  background: rgba(200, 152, 89, 0.08);
+  border-left: 1px solid var(--gold);
+  border-right: 1px solid var(--gold);
+  pointer-events: none;
+  min-width: 4px;
+}
+
+.tl-events { position: absolute; bottom: 14px; left: 0; right: 0; height: 22px; }
+.tl-event {
+  position: absolute; transform: translateX(-50%);
+  width: 14px; height: 22px;
+  background: transparent; border: none; cursor: pointer; padding: 0;
+  display: flex; align-items: flex-end; justify-content: center;
+}
+.tl-event-dot {
+  display: block; width: 7px; height: 7px; background: var(--paper-dim);
+  border: 1px solid var(--ink); border-radius: 50%;
+  transition: transform 160ms ease, background 160ms ease;
+}
+.tl-event.is-vis .tl-event-dot { background: var(--gold); }
+.tl-event:hover .tl-event-dot { transform: scale(1.4); }
+.tl-event.is-focus .tl-event-dot { background: var(--oxblood); transform: scale(1.4); box-shadow: 0 0 0 3px rgba(138, 47, 42, 0.25); }
+
+.tl-cursor {
+  position: absolute; top: 0; bottom: 0; width: 0; pointer-events: none;
+  transform: translateX(-50%);
+}
+.tl-cursor-stem { position: absolute; top: 8px; bottom: 8px; left: 50%; width: 1px; background: var(--paper); transform: translateX(-50%); }
+.tl-cursor-head {
+  position: absolute; top: 0; left: 50%; transform: translateX(-50%) rotate(45deg);
+  width: 8px; height: 8px; background: var(--paper); border: 1px solid var(--ink);
+}
+
+.tl-hover {
+  position: absolute; bottom: -22px; transform: translateX(-50%);
+  font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.15em; color: var(--gold);
+  pointer-events: none; background: var(--ink); padding: 1px 6px; border: 1px solid #3a2d20;
+}
+
+.tl-foot {
+  display: flex; justify-content: space-between; margin-top: 14px;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.2em; color: #4a3e2e; text-transform: uppercase;
+}
+
+/* Default: tl-body just holds the rail (lanes are below via .tl-lanes outside in horizontal mode flow). */
+.tl-body { display: contents; }
+
+/* ─── VERTICAL TIMELINE (橫式 mode) ──────────────────────────── */
+.timeline.is-vertical {
+  display: flex; flex-direction: column;
+  min-height: 0; height: 100%;
+  padding: 12px 14px 10px;
+}
+.timeline.is-vertical .tl-head { flex-direction: column; align-items: stretch; gap: 8px; }
+.timeline.is-vertical .tl-head-left { gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.timeline.is-vertical .tl-year { font-size: 22px; }
+.timeline.is-vertical .tl-era { font-size: 13px; }
+.timeline.is-vertical .tl-head-right { flex-direction: column; align-items: stretch; gap: 8px; }
+.timeline.is-vertical .lane-toggles { flex-wrap: wrap; }
+.timeline.is-vertical .tl-window input[type="range"] { width: 100%; flex: 1; }
+
+.timeline.is-vertical .tl-body {
+  display: flex; flex-direction: row; gap: 10px;
+  flex: 1; min-height: 0; overflow: hidden;
+  margin-top: 6px;
+}
+
+.timeline.is-vertical .tl-rail-wrap {
+  position: relative;
+  width: 84px; height: 100%;
+  cursor: ns-resize;
+  padding: 0 12px;
+  border-top: none; border-bottom: none;
+  border-left: 1px solid #2a2218; border-right: 1px solid #2a2218;
+  flex-shrink: 0;
+}
+.timeline.is-vertical .tl-bands {
+  position: absolute; left: 12px; top: 0; bottom: 0; width: 32px; height: auto;
+}
+.timeline.is-vertical .tl-band {
+  position: absolute; left: 0; top: 0; width: 32px; height: auto;
+  border-right: none; border-bottom: 1px solid rgba(0,0,0,0.4);
+  padding: 6px 4px;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  justify-content: flex-start;
+}
+.timeline.is-vertical .tl-band-name { letter-spacing: 0.15em; }
+.timeline.is-vertical .tl-band-span { display: none; }
+
+.timeline.is-vertical .tl-window-overlay {
+  position: absolute; left: 8px; right: 8px; top: 0; bottom: auto;
+  border-left: none; border-right: none;
+  border-top: 1px solid var(--gold); border-bottom: 1px solid var(--gold);
+  min-width: 0; min-height: 4px;
+}
+
+.timeline.is-vertical .tl-events {
+  position: absolute; top: 0; bottom: 0; left: auto; right: 14px;
+  width: 22px; height: auto;
+}
+.timeline.is-vertical .tl-event {
+  position: absolute; transform: translateY(-50%);
+  left: auto; right: 0;
+  width: 22px; height: 14px;
+  align-items: center; justify-content: flex-end;
+}
+
+.timeline.is-vertical .tl-cursor {
+  position: absolute; left: 0; right: 0; top: 0; bottom: auto;
+  height: 0; width: auto;
+  transform: translateY(-50%);
+}
+.timeline.is-vertical .tl-cursor-stem {
+  top: 50%; left: 8px; right: 8px; bottom: auto;
+  width: auto; height: 1px;
+  transform: translateY(-50%);
+}
+.timeline.is-vertical .tl-cursor-head {
+  top: 50%; left: auto; right: -4px;
+  transform: translateY(-50%) rotate(45deg);
+}
+
+.timeline.is-vertical .tl-hover {
+  position: absolute;
+  left: -2px; right: auto; bottom: auto;
+  transform: translate(-100%, -50%);
+  white-space: nowrap;
+}
+
+/* Lanes alongside the rail */
+.timeline.is-vertical .tl-lanes {
+  flex: 1; min-width: 0;
+  margin-top: 0; max-height: none;
+  overflow-y: auto; overflow-x: hidden;
+  flex-direction: column;
+}
+.timeline.is-vertical .lane {
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 120px;
+}
+.timeline.is-vertical .lane-title {
+  padding: 4px 0 4px; flex-shrink: 0;
+}
+.timeline.is-vertical .lane-list {
+  display: flex; flex-direction: row; flex-wrap: nowrap;
+  gap: 6px; padding: 4px 2px 2px;
+  flex: 1; min-height: 0;
+  overflow-x: auto; overflow-y: hidden;
+}
+.timeline.is-vertical .lane-list::-webkit-scrollbar { height: 6px; }
+.timeline.is-vertical .lane-list::-webkit-scrollbar-thumb { background: #2a2218; }
+.timeline.is-vertical .lane-row {
+  display: flex; flex-direction: column; gap: 4px;
+  width: 28px; flex-shrink: 0; height: 100%;
+  grid-template-columns: none;
+}
+.timeline.is-vertical .lane-label {
+  flex: 0 0 auto;
+  padding: 4px 2px;
+  border-right: none; border-bottom: 1px solid #2a2218;
+  flex-direction: column; gap: 4px;
+  font-size: 10px;
+  max-height: 88px; overflow: hidden;
+}
+.timeline.is-vertical .lane-name {
+  max-width: none; max-height: 70px;
+  writing-mode: vertical-rl; text-orientation: mixed;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  letter-spacing: 0.04em;
+}
+.timeline.is-vertical .lane-track {
+  flex: 1; width: 14px; height: auto;
+  margin: 0 auto;
+}
+.timeline.is-vertical .lane-bar {
+  left: 2px; right: 2px;
+  top: auto; bottom: auto;
+}
+.timeline.is-vertical .lane-snap {
+  left: -1px; right: -1px; top: auto;
+  width: auto; height: 5px;
+  margin-left: 0; margin-top: -2.5px;
+}
+.timeline.is-vertical .lane-snap:hover { transform: scaleX(1.4); }
+
+.timeline.is-vertical .tl-foot {
+  flex-direction: column; gap: 2px; margin-top: 8px;
+  font-size: 8.5px; letter-spacing: 0.16em;
+}
+
+/* ── Status corner ─────────────────────────────────────── */
+.cornermark {
+  position: absolute; bottom: 10px; right: 14px; z-index: 2;
+  font-family: var(--mono); font-size: 9px; letter-spacing: 0.22em; color: rgba(232, 220, 196, 0.4); text-transform: uppercase;
+  pointer-events: none;
+}

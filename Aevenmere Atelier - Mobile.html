@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="viewport-router.js" data-current="mobile"></script>
+<title>The Atelier of Aevenmere — Mobile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<!-- Reuse desktop tokens/components -->
+<link rel="stylesheet" href="styles.css?v=8" />
+<link rel="stylesheet" href="styles2.css?v=8" />
+<link rel="stylesheet" href="codex.css?v=8" />
+
+<!-- Mobile-specific styles -->
+<link rel="stylesheet" href="mobile.css?v=1" />
+
+<style>
+  html, body {
+    margin: 0; padding: 0;
+    background:
+      radial-gradient(1400px 800px at 30% -10%, #2a2218 0%, #14110d 60%),
+      #14110d;
+    min-height: 100vh;
+    color: #e8dcc4;
+    font-family: "EB Garamond", Georgia, serif;
+  }
+  body { overflow-x: hidden; }
+
+  /* Showcase stage */
+  .showcase {
+    min-height: 100vh;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 28px;
+    padding: 36px 24px 60px;
+    align-items: start;
+    justify-items: center;
+  }
+  .showcase-h {
+    text-align: center; max-width: 720px;
+  }
+  .showcase-h .eyebrow {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase;
+    color: #7a6b54;
+  }
+  .showcase-h h1 {
+    font-family: "Cormorant SC", serif; font-weight: 500;
+    font-size: 36px; letter-spacing: 0.18em; text-transform: uppercase;
+    color: #e8dcc4; margin: 8px 0 4px;
+  }
+  .showcase-h h1 em {
+    font-family: "EB Garamond", serif; font-style: italic; letter-spacing: 0.04em;
+    color: #d6b07a; text-transform: none; font-weight: 400;
+  }
+  .showcase-h p {
+    font-family: "EB Garamond", serif; font-style: italic;
+    color: #b8a888; font-size: 15px; line-height: 1.55;
+    margin: 4px 0 0;
+  }
+
+  .stage-row {
+    display: flex; gap: 36px; flex-wrap: wrap; justify-content: center;
+    align-items: flex-start;
+  }
+
+  .device-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 14px;
+  }
+  .device-caption {
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    font-size: 9.5px; letter-spacing: 0.28em; text-transform: uppercase;
+    color: #7a6b54;
+  }
+  .device-caption b { color: #d6b07a; font-weight: 500; }
+
+  /* Standalone (no frame) mode */
+  .standalone-host {
+    width: 402px; height: 874px;
+    border: 1px solid #2a2218;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    overflow: hidden;
+  }
+
+  /* Fullscreen mode = mobile fills viewport (for actual phones) */
+  body.fullscreen .showcase { padding: 0; gap: 0; }
+  body.fullscreen .showcase-h,
+  body.fullscreen .stage-row .device-wrap:not(.primary) { display: none; }
+  body.fullscreen .stage-row { gap: 0; }
+  body.fullscreen .device-wrap { gap: 0; }
+  body.fullscreen .device-caption { display: none; }
+  body.fullscreen #device-primary > div {
+    width: 100vw !important; height: 100vh !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+  body.fullscreen .standalone-host {
+    width: 100vw;
+    height: 100vh;
+    border: 0;
+    box-shadow: none;
+  }
+  /* keep status bar but adjust paddings via mobile.css media query */
+
+  @media (max-width: 900px) {
+    .showcase-h h1 { font-size: 24px; letter-spacing: 0.14em; }
+    .stage-row { gap: 18px; }
+  }
+
+  /* Tweaks panel pinned by tweaks-panel.jsx */
+</style>
+</head>
+<body>
+
+<div class="showcase">
+  <header class="showcase-h">
+    <div class="eyebrow">Folio IV · 手機版 · A pocket atlas</div>
+    <h1>The Atelier <em>in the palm</em></h1>
+    <p>The cartographer's bench, made small. Walk the years with a thumb, lift a leaf in the rain, summon a soul from the back of the boat.</p>
+  </header>
+
+  <div class="stage-row" id="stage-row">
+    <div class="device-wrap primary" id="device-primary">
+      <!-- IOSDevice renders here -->
+    </div>
+    <!-- Optional second device showing a different state — toggle via Tweaks -->
+  </div>
+</div>
+
+<!-- React & Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<!-- Data + core helpers from the atelier -->
+<script src="data.js"></script>
+<script src="core.js"></script>
+<script src="draw.js"></script>
+<script src="ai.js"></script>
+
+<!-- We need WorldMap + Codex available globally. Their files attach to window. -->
+<script type="text/babel" src="map.jsx"></script>
+<script type="text/babel" src="codex.jsx"></script>
+
+<!-- iOS frame + mobile app -->
+<script type="text/babel" src="ios-frame.jsx"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="mobile.jsx"></script>
+
+<!-- Boot — render the iOS device + MobileApp + tweaks panel -->
+<script type="text/babel">
+(function () {
+  /*EDITMODE-BEGIN*/
+  const TWEAK_DEFAULTS = {
+    "bezel": "dark",
+    "showFrame": true,
+    "deviceScale": 1.0
+  };
+  /*EDITMODE-END*/
+
+  function Showcase() {
+    const [t, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
+    const [isNarrowViewport, setIsNarrowViewport] = React.useState(() => window.innerWidth <= 820);
+
+    React.useEffect(() => {
+      const onResize = () => setIsNarrowViewport(window.innerWidth <= 820);
+      window.addEventListener("resize", onResize, { passive: true });
+      window.addEventListener("orientationchange", onResize, { passive: true });
+      return () => {
+        window.removeEventListener("resize", onResize);
+        window.removeEventListener("orientationchange", onResize);
+      };
+    }, []);
+
+    const showFrame = t.showFrame && !isNarrowViewport;
+
+    React.useEffect(() => {
+      if (!showFrame) document.body.classList.add("fullscreen");
+      else document.body.classList.remove("fullscreen");
+    }, [showFrame]);
+
+    const phone = (
+      <window.IOSDevice width={402} height={874} dark={true}>
+        <window.MobileApp />
+      </window.IOSDevice>
+    );
+
+    const standalone = (
+      <div className="standalone-host">
+        <window.MobileApp />
+      </div>
+    );
+
+    const wrap = showFrame ? phone : standalone;
+
+    return (
+      <>
+        <div style={{ transform: `scale(${t.deviceScale})`, transformOrigin: "top center" }}>
+          {wrap}
+        </div>
+        <div className="device-caption"><b>iPhone · 402×874</b> · live mobile prototype</div>
+
+        <window.TweaksPanel title="Tweaks · 手機版">
+          <window.TweakSection label="Device" />
+          <window.TweakRadio label="Frame"
+            value={showFrame ? "show" : "hide"}
+            onChange={(v) => setTweak("showFrame", v === "show")}
+            options={[{ value: "show", label: "iPhone" }, { value: "hide", label: "Bare" }]} />
+          <window.TweakSlider label="Scale" min={0.7} max={1.2} step={0.05} unit="×"
+            value={t.deviceScale} onChange={(v) => setTweak("deviceScale", v)} />
+          <window.TweakSection label="Data" />
+          <window.TweakButton label="↺ Re-cast the world" onClick={() => {
+            if (!confirm("Reset Aevenmere to its seed? Local edits will be lost.")) return;
+            try {
+              localStorage.removeItem("aevenmere.world.v2");
+              localStorage.removeItem("aevenmere.year.v2");
+            } catch {}
+            location.reload();
+          }} />
+        </window.TweaksPanel>
+      </>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById("device-primary")).render(<Showcase />);
+})();
+</script>
+
+</body>
+</html>

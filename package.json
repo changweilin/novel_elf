@@ -1,0 +1,10 @@
+{
+  "name": "novel-elf",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.mjs --host 0.0.0.0 --port 8789",
+    "dev:local": "node dev-server.mjs --host 127.0.0.1 --port 8789"
+  }
+}

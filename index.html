@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="description" content="The Atelier of Aevenmere deployment entry page." />
+<title>The Atelier of Aevenmere</title>
+<script src="viewport-router.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=Noto+Serif+TC:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #111411;
+    --night: #171d20;
+    --green: #1f3d34;
+    --green-2: #294a3d;
+    --plum: #342537;
+    --paper: #eee3cc;
+    --muted: #c8baa0;
+    --gold: #d2a85f;
+    --line: rgba(238, 227, 204, 0.2);
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--ink);
+    color: var(--paper);
+    font-family: "Noto Serif TC", "EB Garamond", Georgia, serif;
+  }
+
+  body {
+    min-height: 100vh;
+  }
+
+  a {
+    color: inherit;
+  }
+
+  .hero {
+    min-height: 82vh;
+    position: relative;
+    display: grid;
+    align-items: end;
+    overflow: hidden;
+    background:
+      linear-gradient(90deg, rgba(13, 18, 17, 0.94) 0%, rgba(18, 24, 26, 0.78) 48%, rgba(29, 33, 35, 0.3) 100%),
+      linear-gradient(180deg, rgba(17, 20, 17, 0.18) 0%, rgba(17, 20, 17, 0.86) 100%),
+      url("screenshots/full-page.png") center / cover no-repeat,
+      var(--night);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .hero::after {
+    content: "";
+    position: absolute;
+    inset: auto 0 0;
+    height: 34%;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(17, 20, 17, 0) 0%, var(--ink) 100%);
+  }
+
+  .hero-inner {
+    position: relative;
+    z-index: 1;
+    width: min(1120px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 56px 0 74px;
+  }
+
+  .brand {
+    margin: 0;
+    max-width: 760px;
+    font-family: "Cormorant SC", "Noto Serif TC", serif;
+    font-size: 64px;
+    line-height: 0.95;
+    font-weight: 500;
+    letter-spacing: 0;
+    text-wrap: balance;
+  }
+
+  .tagline {
+    max-width: 660px;
+    margin: 22px 0 0;
+    color: var(--muted);
+    font-size: 18px;
+    line-height: 1.75;
+  }
+
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 34px;
+  }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 46px;
+    padding: 0 18px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: rgba(238, 227, 204, 0.08);
+    color: var(--paper);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+  }
+
+  .button.primary {
+    background: var(--gold);
+    color: #181410;
+    border-color: rgba(210, 168, 95, 0.7);
+  }
+
+  .button:hover,
+  .button:focus-visible {
+    transform: translateY(-1px);
+    border-color: rgba(238, 227, 204, 0.48);
+    background: rgba(238, 227, 204, 0.14);
+    outline: none;
+  }
+
+  .button.primary:hover,
+  .button.primary:focus-visible {
+    background: #e2bb76;
+    border-color: #e2bb76;
+  }
+
+  .routes {
+    position: relative;
+    margin-top: -44px;
+    padding: 0 24px 56px;
+  }
+
+  .route-grid {
+    width: min(1120px, 100%);
+    margin: 0 auto;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .route-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(220px, 0.85fr);
+    min-height: 254px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: linear-gradient(135deg, rgba(31, 61, 52, 0.96), rgba(52, 37, 55, 0.9));
+    box-shadow: 0 24px 60px var(--shadow);
+    text-decoration: none;
+  }
+
+  .route-copy {
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-width: 0;
+    padding: 26px;
+  }
+
+  .route-kicker {
+    margin: 0 0 12px;
+    color: var(--gold);
+    font-size: 13px;
+    line-height: 1.4;
+    font-weight: 600;
+  }
+
+  .route-title {
+    margin: 0;
+    font-size: 28px;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .route-text {
+    margin: 14px 0 0;
+    color: var(--muted);
+    font-size: 15px;
+    line-height: 1.7;
+  }
+
+  .route-open {
+    display: inline-flex;
+    align-items: center;
+    width: fit-content;
+    min-height: 36px;
+    margin-top: 22px;
+    padding: 0 13px;
+    border: 1px solid rgba(238, 227, 204, 0.28);
+    border-radius: 8px;
+    color: var(--paper);
+    font-size: 14px;
+    font-weight: 600;
+    background: rgba(17, 20, 17, 0.2);
+  }
+
+  .route-card:hover .route-open,
+  .route-card:focus-visible .route-open {
+    border-color: rgba(210, 168, 95, 0.9);
+    background: rgba(210, 168, 95, 0.16);
+  }
+
+  .route-card:focus-visible {
+    outline: 2px solid var(--gold);
+    outline-offset: 4px;
+  }
+
+  .route-preview {
+    min-width: 0;
+    border-left: 1px solid rgba(238, 227, 204, 0.16);
+    background: rgba(17, 20, 17, 0.22);
+  }
+
+  .route-preview img {
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .footer {
+    width: min(1120px, calc(100% - 48px));
+    margin: 0 auto;
+    padding: 0 0 34px;
+    color: rgba(238, 227, 204, 0.58);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  @media (max-width: 980px) {
+    .hero {
+      min-height: 72vh;
+    }
+
+    .brand {
+      font-size: 46px;
+    }
+
+    .route-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  @media (max-width: 680px) {
+    .hero {
+      min-height: 78vh;
+      background:
+        linear-gradient(180deg, rgba(13, 18, 17, 0.9) 0%, rgba(17, 20, 17, 0.66) 48%, rgba(17, 20, 17, 0.94) 100%),
+        url("screenshots/narrow2.png") top center / cover no-repeat,
+        var(--night);
+    }
+
+    .hero-inner {
+      width: min(100% - 32px, 1120px);
+      padding: 48px 0 64px;
+    }
+
+    .brand {
+      font-size: 38px;
+      line-height: 1;
+    }
+
+    .tagline {
+      font-size: 16px;
+      line-height: 1.65;
+    }
+
+    .actions {
+      flex-direction: column;
+    }
+
+    .button {
+      width: 100%;
+    }
+
+    .routes {
+      margin-top: -28px;
+      padding: 0 16px 40px;
+    }
+
+    .route-card {
+      grid-template-columns: 1fr;
+      min-height: 0;
+    }
+
+    .route-preview {
+      order: -1;
+      height: 178px;
+      border-left: 0;
+      border-bottom: 1px solid rgba(238, 227, 204, 0.16);
+    }
+
+    .route-copy {
+      padding: 22px;
+    }
+
+    .route-title {
+      font-size: 24px;
+    }
+
+    .footer {
+      width: min(100% - 32px, 1120px);
+    }
+  }
+</style>
+</head>
+<body>
+  <main>
+    <section class="hero" aria-labelledby="page-title">
+      <div class="hero-inner">
+        <h1 class="brand" id="page-title">The Atelier of Aevenmere</h1>
+        <p class="tagline">部署入口已備妥。選擇完整桌面工作台，或開啟手機展示版，從同一份 Aevenmere 世界資料開始瀏覽。</p>
+        <div class="actions" aria-label="主要入口">
+          <a class="button primary" href="./Aevenmere%20Atelier.html">進入桌面工作台</a>
+          <a class="button" href="./Aevenmere%20Atelier%20-%20Mobile.html">開啟手機展示版</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="routes" aria-label="瀏覽版本">
+      <div class="route-grid">
+        <a class="route-card" href="./Aevenmere%20Atelier.html">
+          <div class="route-copy">
+            <div>
+              <p class="route-kicker">Desktop</p>
+              <h2 class="route-title">桌面工作台</h2>
+              <p class="route-text">地圖、時間線、典籍與章節編輯器集中在完整寬度畫布。</p>
+            </div>
+            <span class="route-open">進入</span>
+          </div>
+          <figure class="route-preview" aria-hidden="true">
+            <img src="screenshots/full-page.png" alt="" loading="lazy">
+          </figure>
+        </a>
+
+        <a class="route-card" href="./Aevenmere%20Atelier%20-%20Mobile.html">
+          <div class="route-copy">
+            <div>
+              <p class="route-kicker">Mobile</p>
+              <h2 class="route-title">手機展示版</h2>
+              <p class="route-text">以手機尺寸呈現地圖、編年、Codex 與 Leaf 的口袋體驗。</p>
+            </div>
+            <span class="route-open">開啟</span>
+          </div>
+          <figure class="route-preview" aria-hidden="true">
+            <img src="screenshots/narrow2.png" alt="" loading="lazy">
+          </figure>
+        </a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    靜態部署入口，不需要建置流程。既有桌面版與手機版檔案保持原樣。
+  </footer>
+</body>
+</html>
