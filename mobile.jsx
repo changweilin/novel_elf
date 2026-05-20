@@ -113,10 +113,10 @@ function MobileApp() {
   };
 
   const onSelectStory = async (storyId) => {
-    if (!storyId || storyId === activeStory?.id || storeMode !== "api") return;
+    if (!storyId || storyId === activeStory?.id || !storyReady) return;
     setStoryStatus("loading");
     try {
-      const loaded = await window.StoryStore.loadStory(storyId);
+      const loaded = await window.StoryStore.loadStory(storyId, storeMode);
       applyLoadedStory(loaded);
       setStoryError(null);
       setStoryStatus("ready");
@@ -127,12 +127,12 @@ function MobileApp() {
   };
 
   const onCreateStory = async () => {
-    if (storeMode !== "api") return;
+    if (!storyReady) return;
     const title = prompt("Name this new story", "Untitled Story");
     if (!title) return;
     setStoryStatus("loading");
     try {
-      const created = await window.StoryStore.createStory({ title });
+      const created = await window.StoryStore.createStory({ title }, storeMode);
       setStories(created.stories || []);
       applyLoadedStory(created);
       setStoryError(null);
@@ -144,12 +144,12 @@ function MobileApp() {
   };
 
   const onDuplicateStory = async () => {
-    if (storeMode !== "api" || !activeStory) return;
+    if (!storyReady || !activeStory) return;
     const title = prompt("Name the duplicate story", `${world.name} Copy`);
     if (!title) return;
     setStoryStatus("loading");
     try {
-      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id });
+      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id }, storeMode);
       setStories(created.stories || []);
       applyLoadedStory(created);
       setStoryError(null);
@@ -161,12 +161,12 @@ function MobileApp() {
   };
 
   const onRenameStory = async () => {
-    if (storeMode !== "api" || !activeStory) return;
+    if (!storyReady || !activeStory) return;
     const name = prompt("Rename this story", world.name);
     if (!name || name === world.name) return;
     setStoryStatus("saving");
     try {
-      const renamed = await window.StoryStore.renameStory(activeStory.id, { name });
+      const renamed = await window.StoryStore.renameStory(activeStory.id, { name }, storeMode);
       setStories(renamed.stories || stories);
       applyLoadedStory(renamed);
       setStoryError(null);
@@ -178,23 +178,51 @@ function MobileApp() {
   };
 
   const onArchiveStory = async () => {
-    if (storeMode !== "api" || !activeStory) return;
+    if (!storyReady || !activeStory) return;
     if (!confirm(`Archive "${world.name}"? Its Markdown files will move into stories/_archived.`)) return;
     setStoryStatus("loading");
     try {
-      const archived = await window.StoryStore.archiveStory(activeStory.id);
+      const archived = await window.StoryStore.archiveStory(activeStory.id, storeMode);
       const remaining = archived.stories || [];
       setStories(remaining);
       if (remaining.length) {
-        const loaded = await window.StoryStore.loadStory(remaining[0].id);
+        const loaded = await window.StoryStore.loadStory(remaining[0].id, storeMode);
         applyLoadedStory(loaded);
       } else {
-        const created = await window.StoryStore.createStory({ title: "Untitled Story" });
+        const created = await window.StoryStore.createStory({ title: "Untitled Story" }, storeMode);
         setStories(created.stories || []);
         applyLoadedStory(created);
       }
       setStoryError(null);
       setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onExportStoryTemplate = () => {
+    try {
+      window.StoryStore.downloadStoryImportTemplate();
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onImportStoryFile = async (file) => {
+    if (!storyReady || !file) return;
+    const defaultTitle = window.StoryStore.storyTitleFromFileName(file.name);
+    const title = prompt("匯入為故事名稱", defaultTitle);
+    if (!title) return;
+    setStoryStatus("loading");
+    try {
+      const markdown = await file.text();
+      const created = await window.StoryStore.createStoryFromMarkdown({ markdown, fileName: file.name, title }, storeMode);
+      setStories(created.stories || []);
+      applyLoadedStory(created);
+      setStoryError(null);
+      setStoryStatus(storeMode === "api" ? "saved" : "static");
     } catch (error) {
       setStoryError(String(error.message || error));
       setStoryStatus("error");
@@ -369,6 +397,8 @@ function MobileApp() {
             onDuplicateStory={onDuplicateStory}
             onRenameStory={onRenameStory}
             onArchiveStory={onArchiveStory}
+            onImportStoryFile={onImportStoryFile}
+            onExportStoryTemplate={onExportStoryTemplate}
           />
           <div className="mob-top-folio">
             <button className={folio === "atelier" ? "on" : ""} onClick={() => setFolio("atelier")}>I·II Atelier</button>
@@ -387,6 +417,16 @@ function MobileApp() {
       {/* MAIN VIEW */}
       <div className="mob-view">
         {renderActive()}
+        {sheetOpen && (
+          <>
+            <div className="mob-sheet-backdrop" onClick={closeSheet} />
+            <DetailSheet world={world} currentYear={currentYear}
+                         focusId={focusId} selectedRegionId={selectedRegionId}
+                         onClose={closeSheet}
+                         onJump={(y) => { setCurrentYear(y); }}
+                         onFocus={(id) => { setFocusId(id); setSelectedRegionId(null); }} />
+          </>
+        )}
       </div>
 
       {/* BOTTOM TABS */}
@@ -436,15 +476,18 @@ function MobileStoryBar({
   onCreateStory,
   onDuplicateStory,
   onRenameStory,
-  onArchiveStory
+  onArchiveStory,
+  onImportStoryFile,
+  onExportStoryTemplate
 }) {
+  const importInputRef = useRef(null);
   return (
     <div className={`mob-storybar ${canUseApi ? "is-api" : "is-static"}`}>
       <div className="mob-storybar-main">
         <select
           className="mob-story-select"
           value={activeStory?.id || ""}
-          disabled={disabled || !canUseApi}
+          disabled={disabled}
           onChange={(event) => onSelectStory(event.target.value)}
         >
           {(stories || []).map((story) => (
@@ -454,10 +497,23 @@ function MobileStoryBar({
         <span className={`mob-story-state ${status === "error" ? "is-error" : ""}`}>{status}</span>
       </div>
       <div className="mob-story-actions">
-        <button disabled={!canUseApi || disabled} onClick={onCreateStory}>New</button>
-        <button disabled={!canUseApi || disabled || !activeStory} onClick={onDuplicateStory}>Copy</button>
-        <button disabled={!canUseApi || disabled || !activeStory} onClick={onRenameStory}>Name</button>
-        <button disabled={!canUseApi || disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+        <button disabled={disabled} onClick={onCreateStory}>New</button>
+        <button disabled={disabled} onClick={() => importInputRef.current?.click()}>Import</button>
+        <button onClick={onExportStoryTemplate}>Format</button>
+        <button disabled={disabled || !activeStory} onClick={onDuplicateStory}>Copy</button>
+        <button disabled={disabled || !activeStory} onClick={onRenameStory}>Name</button>
+        <button disabled={disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+        <input
+          ref={importInputRef}
+          hidden
+          type="file"
+          accept=".md,text/markdown,text/plain"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onImportStoryFile(file);
+            event.target.value = "";
+          }}
+        />
       </div>
       {error && <div className="mob-story-error">{error}</div>}
     </div>

@@ -3,6 +3,7 @@
 
   const ACTIVE_KEY = "novelElf.activeStoryId.v1";
   const LEGACY_WORLD_KEY = "aevenmere.world.v2";
+  const STATIC_STORIES_KEY = "novelElf.staticStories.v1";
 
   function clone(value) {
     return JSON.parse(JSON.stringify(value || null));
@@ -79,6 +80,146 @@
     return Array.isArray(value) ? value : [];
   }
 
+  function readStaticRecords(seedWorld) {
+    let records = [];
+    try {
+      const raw = localStorage.getItem(STATIC_STORIES_KEY);
+      if (raw) records = JSON.parse(raw);
+    } catch {}
+
+    records = arr(records)
+      .map((record) => recordFromWorld(record.world || record, record.story || record))
+      .filter(Boolean);
+
+    if (!records.length) {
+      records = [recordFromWorld(loadLegacyWorld(seedWorld))];
+      writeStaticRecords(records);
+    }
+
+    return records;
+  }
+
+  function writeStaticRecords(records) {
+    try { localStorage.setItem(STATIC_STORIES_KEY, JSON.stringify(records)); } catch {}
+  }
+
+  function recordFromWorld(inputWorld, inputStory) {
+    const world = normalizeWorld(inputWorld || {});
+    const story = {
+      ...storyFromWorld(world),
+      ...(inputStory || {})
+    };
+    story.id = slugify(story.id || world.storyId || story.name, "story");
+    story.name = story.name || world.name || "Untitled Story";
+    story.subtitle = story.subtitle || world.subtitle || "";
+    story.defaultYear = Number.isFinite(Number(story.defaultYear)) ? Number(story.defaultYear) : world.defaultYear;
+    world.storyId = story.id;
+    world.name = story.name;
+    world.subtitle = story.subtitle || world.subtitle;
+    world.defaultYear = story.defaultYear;
+    return { id: story.id, story, world };
+  }
+
+  function selectStaticRecord(seedWorld, id) {
+    const records = readStaticRecords(seedWorld);
+    let activeId = id;
+    try { activeId = activeId || localStorage.getItem(ACTIVE_KEY); } catch {}
+    const record = records.find((item) => item.id === activeId) || records[0];
+    saveActiveStoryId(record.id);
+    return { records, record };
+  }
+
+  function uniqueStaticId(records, value) {
+    const base = slugify(value, "story");
+    const used = new Set(records.map((record) => record.id));
+    if (!used.has(base)) return base;
+    let index = 2;
+    while (used.has(`${base}-${index}`)) index += 1;
+    return `${base}-${index}`;
+  }
+
+  function createStaticStory({ title, subtitle, sourceId, world }) {
+    const seed = normalizeWorld(window.WORLD_SEED);
+    const records = readStaticRecords(seed);
+    const source = world
+      ? normalizeWorld(world)
+      : sourceId
+        ? clone(records.find((record) => record.id === sourceId)?.world || seed)
+        : normalizeWorld({ name: title || "Untitled Story", subtitle: subtitle || "", defaultYear: seed.defaultYear });
+    const id = uniqueStaticId(records, title || source.name || "Untitled Story");
+    const nextWorld = normalizeWorld({ ...source, storyId: id, name: title || source.name || "Untitled Story" });
+    if (subtitle != null) nextWorld.subtitle = subtitle;
+    const record = recordFromWorld(nextWorld, { id });
+    const nextRecords = [...records, record];
+    writeStaticRecords(nextRecords);
+    saveActiveStoryId(record.id);
+    return { story: record.story, world: record.world, stories: nextRecords.map((item) => item.story) };
+  }
+
+  function renameStaticStory(id, patch) {
+    const seed = normalizeWorld(window.WORLD_SEED);
+    const records = readStaticRecords(seed);
+    const nextRecords = records.map((record) => {
+      if (record.id !== id) return record;
+      const story = { ...record.story };
+      const world = normalizeWorld(record.world);
+      if (patch.name != null) {
+        story.name = patch.name;
+        world.name = patch.name;
+      }
+      if (patch.subtitle != null) {
+        story.subtitle = patch.subtitle;
+        world.subtitle = patch.subtitle;
+      }
+      if (patch.defaultYear != null) {
+        story.defaultYear = Number(patch.defaultYear);
+        world.defaultYear = Number(patch.defaultYear);
+      }
+      return recordFromWorld(world, story);
+    });
+    writeStaticRecords(nextRecords);
+    const record = nextRecords.find((item) => item.id === id) || nextRecords[0];
+    saveActiveStoryId(record.id);
+    return { story: record.story, world: record.world, stories: nextRecords.map((item) => item.story) };
+  }
+
+  function archiveStaticStory(id) {
+    const seed = normalizeWorld(window.WORLD_SEED);
+    let records = readStaticRecords(seed).filter((record) => record.id !== id);
+    if (!records.length) records = [recordFromWorld(normalizeWorld({ ...seed, storyId: "untitled-story", name: "Untitled Story" }))];
+    writeStaticRecords(records);
+    saveActiveStoryId(records[0].id);
+    return { ok: true, archived: id, stories: records.map((item) => item.story) };
+  }
+
+  function requireStoryImport() {
+    if (!window.StoryImport) {
+      throw new Error("Story import tools are not loaded");
+    }
+    return window.StoryImport;
+  }
+
+  function storyTitleFromFileName(fileName) {
+    return requireStoryImport().titleFromFileName(fileName);
+  }
+
+  function storyImportTemplateMarkdown() {
+    return requireStoryImport().templateMarkdown();
+  }
+
+  function downloadStoryImportTemplate() {
+    const importer = requireStoryImport();
+    const blob = new Blob([importer.templateMarkdown()], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = importer.templateFileName || "novel-elf-story-settings-template.md";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 500);
+  }
+
   async function api(path, options) {
     const init = {
       ...options,
@@ -115,18 +256,22 @@
         world
       };
     } catch (error) {
-      const world = loadLegacyWorld(seed);
+      const { records, record } = selectStaticRecord(seed);
       return {
         mode: "static",
-        stories: [storyFromWorld(world)],
-        activeStory: storyFromWorld(world),
-        world,
+        stories: records.map((item) => item.story),
+        activeStory: record.story,
+        world: record.world,
         error
       };
     }
   }
 
-  async function loadStory(id) {
+  async function loadStory(id, mode) {
+    if (mode === "static") {
+      const { record } = selectStaticRecord(window.WORLD_SEED, id);
+      return { story: record.story, world: record.world };
+    }
     const detail = await api(`/api/stories/${encodeURIComponent(id)}`);
     saveActiveStoryId(id);
     return {
@@ -139,7 +284,16 @@
     const normalized = normalizeWorld(world);
     if (mode !== "api") {
       try { localStorage.setItem(LEGACY_WORLD_KEY, JSON.stringify(normalized)); } catch {}
-      return { story: storyFromWorld(normalized), world: normalized };
+      normalized.storyId = id || normalized.storyId;
+      const seed = normalizeWorld(window.WORLD_SEED);
+      const records = readStaticRecords(seed);
+      const record = recordFromWorld(normalized, { id: normalized.storyId });
+      const nextRecords = records.some((item) => item.id === record.id)
+        ? records.map((item) => item.id === record.id ? record : item)
+        : [...records, record];
+      writeStaticRecords(nextRecords);
+      saveActiveStoryId(record.id);
+      return { story: record.story, world: record.world, stories: nextRecords.map((item) => item.story) };
     }
     return api(`/api/stories/${encodeURIComponent(id)}`, {
       method: "PUT",
@@ -147,21 +301,37 @@
     });
   }
 
-  async function createStory({ title, subtitle, sourceId, world }) {
+  async function createStory({ title, subtitle, sourceId, world }, mode) {
+    if (mode === "static") return createStaticStory({ title, subtitle, sourceId, world });
     return api("/api/stories", {
       method: "POST",
       body: JSON.stringify({ title, subtitle, sourceId, world })
     });
   }
 
-  async function renameStory(id, patch) {
+  async function createStoryFromMarkdown({ markdown, fileName, title }, mode) {
+    const parsed = requireStoryImport().parseStoryMarkdown(markdown, { fileName, title });
+    const created = await createStory({
+      title: parsed.world.name,
+      subtitle: parsed.world.subtitle,
+      world: parsed.world
+    }, mode);
+    return {
+      ...created,
+      importSummary: parsed.summary
+    };
+  }
+
+  async function renameStory(id, patch, mode) {
+    if (mode === "static") return renameStaticStory(id, patch);
     return api(`/api/stories/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch)
     });
   }
 
-  async function archiveStory(id) {
+  async function archiveStory(id, mode) {
+    if (mode === "static") return archiveStaticStory(id);
     return api(`/api/stories/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
@@ -229,7 +399,9 @@
 
   window.StoryStore = {
     archiveStory,
+    createStoryFromMarkdown,
     createStory,
+    downloadStoryImportTemplate,
     firstFocus,
     getUi,
     getYear,
@@ -241,6 +413,8 @@
     saveWorld,
     setUi,
     slugify,
+    storyImportTemplateMarkdown,
+    storyTitleFromFileName,
     storyFromWorld
   };
 })();

@@ -79,7 +79,7 @@
 }
 .mob-story-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 4px;
 }
 .mob-story-actions button {
@@ -369,6 +369,10 @@
   background: rgba(10,8,5,0.55);
   z-index: 30;
   animation: sheet-fade 200ms ease;
+}
+.mob > .mob-sheet-backdrop,
+.mob > .mob-sheet {
+  display: none;
 }
 @keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
 .mob-sheet {

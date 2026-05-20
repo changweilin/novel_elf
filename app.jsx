@@ -1,6 +1,6 @@
 // Main App. Composes map, multi-lane timeline, tabbed inspector, AI desk.
 
-const { useState, useEffect, useMemo } = React;
+const { useState, useEffect, useMemo, useRef } = React;
 
 const KIND_LABELS = { event: "Event", character: "Character", organization: "Organization", country: "Country" };
 
@@ -108,10 +108,10 @@ const App = () => {
   };
 
   const onSelectStory = async (storyId) => {
-    if (!storyId || storyId === activeStory?.id || storeMode !== "api") return;
+    if (!storyId || storyId === activeStory?.id || !storyReady) return;
     setStoryStatus("loading");
     try {
-      const loaded = await window.StoryStore.loadStory(storyId);
+      const loaded = await window.StoryStore.loadStory(storyId, storeMode);
       applyLoadedStory(loaded);
       setStoryError(null);
       setStoryStatus("ready");
@@ -122,12 +122,12 @@ const App = () => {
   };
 
   const onCreateStory = async () => {
-    if (storeMode !== "api") return;
+    if (!storyReady) return;
     const title = prompt("Name this new story", "Untitled Story");
     if (!title) return;
     setStoryStatus("loading");
     try {
-      const created = await window.StoryStore.createStory({ title });
+      const created = await window.StoryStore.createStory({ title }, storeMode);
       setStories(created.stories || []);
       applyLoadedStory(created);
       setStoryError(null);
@@ -139,12 +139,12 @@ const App = () => {
   };
 
   const onDuplicateStory = async () => {
-    if (storeMode !== "api" || !activeStory) return;
+    if (!storyReady || !activeStory) return;
     const title = prompt("Name the duplicate story", `${world.name} Copy`);
     if (!title) return;
     setStoryStatus("loading");
     try {
-      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id });
+      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id }, storeMode);
       setStories(created.stories || []);
       applyLoadedStory(created);
       setStoryError(null);
@@ -156,12 +156,12 @@ const App = () => {
   };
 
   const onRenameStory = async () => {
-    if (storeMode !== "api" || !activeStory) return;
+    if (!storyReady || !activeStory) return;
     const name = prompt("Rename this story", world.name);
     if (!name || name === world.name) return;
     setStoryStatus("saving");
     try {
-      const renamed = await window.StoryStore.renameStory(activeStory.id, { name });
+      const renamed = await window.StoryStore.renameStory(activeStory.id, { name }, storeMode);
       setStories(renamed.stories || stories);
       applyLoadedStory(renamed);
       setStoryError(null);
@@ -173,23 +173,51 @@ const App = () => {
   };
 
   const onArchiveStory = async () => {
-    if (storeMode !== "api" || !activeStory) return;
+    if (!storyReady || !activeStory) return;
     if (!confirm(`Archive "${world.name}"? Its Markdown files will move into stories/_archived.`)) return;
     setStoryStatus("loading");
     try {
-      const archived = await window.StoryStore.archiveStory(activeStory.id);
+      const archived = await window.StoryStore.archiveStory(activeStory.id, storeMode);
       const remaining = archived.stories || [];
       setStories(remaining);
       if (remaining.length) {
-        const loaded = await window.StoryStore.loadStory(remaining[0].id);
+        const loaded = await window.StoryStore.loadStory(remaining[0].id, storeMode);
         applyLoadedStory(loaded);
       } else {
-        const created = await window.StoryStore.createStory({ title: "Untitled Story" });
+        const created = await window.StoryStore.createStory({ title: "Untitled Story" }, storeMode);
         setStories(created.stories || []);
         applyLoadedStory(created);
       }
       setStoryError(null);
       setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onExportStoryTemplate = () => {
+    try {
+      window.StoryStore.downloadStoryImportTemplate();
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onImportStoryFile = async (file) => {
+    if (!storyReady || !file) return;
+    const defaultTitle = window.StoryStore.storyTitleFromFileName(file.name);
+    const title = prompt("匯入為故事名稱", defaultTitle);
+    if (!title) return;
+    setStoryStatus("loading");
+    try {
+      const markdown = await file.text();
+      const created = await window.StoryStore.createStoryFromMarkdown({ markdown, fileName: file.name, title }, storeMode);
+      setStories(created.stories || []);
+      applyLoadedStory(created);
+      setStoryError(null);
+      setStoryStatus(storeMode === "api" ? "saved" : "static");
     } catch (error) {
       setStoryError(String(error.message || error));
       setStoryStatus("error");
@@ -481,6 +509,8 @@ const App = () => {
       onDuplicateStory={onDuplicateStory}
       onRenameStory={onRenameStory}
       onArchiveStory={onArchiveStory}
+      onImportStoryFile={onImportStoryFile}
+      onExportStoryTemplate={onExportStoryTemplate}
     />
   );
 
@@ -663,8 +693,11 @@ function StoryWorkspaceBar({
   onCreateStory,
   onDuplicateStory,
   onRenameStory,
-  onArchiveStory
+  onArchiveStory,
+  onImportStoryFile,
+  onExportStoryTemplate
 }) {
+  const importInputRef = useRef(null);
   const statusLabel =
     status === "saving" ? "saving" :
     status === "saved" ? "saved" :
@@ -680,7 +713,7 @@ function StoryWorkspaceBar({
         <select
           className="story-select"
           value={activeStory?.id || ""}
-          disabled={disabled || !canUseApi}
+          disabled={disabled}
           onChange={(event) => onSelectStory(event.target.value)}
         >
           {(stories || []).map((story) => (
@@ -690,10 +723,23 @@ function StoryWorkspaceBar({
         <span className={`story-save-state ${status === "error" ? "is-error" : ""}`}>{statusLabel}</span>
       </div>
       <div className="story-actions">
-        <button className="story-action" disabled={!canUseApi || disabled} onClick={onCreateStory}>New</button>
-        <button className="story-action" disabled={!canUseApi || disabled || !activeStory} onClick={onDuplicateStory}>Duplicate</button>
-        <button className="story-action" disabled={!canUseApi || disabled || !activeStory} onClick={onRenameStory}>Rename</button>
-        <button className="story-action danger" disabled={!canUseApi || disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+        <button className="story-action" disabled={disabled} onClick={onCreateStory}>New</button>
+        <button className="story-action" disabled={disabled} onClick={() => importInputRef.current?.click()}>Import</button>
+        <button className="story-action" onClick={onExportStoryTemplate}>Template</button>
+        <button className="story-action" disabled={disabled || !activeStory} onClick={onDuplicateStory}>Duplicate</button>
+        <button className="story-action" disabled={disabled || !activeStory} onClick={onRenameStory}>Rename</button>
+        <button className="story-action danger" disabled={disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+        <input
+          ref={importInputRef}
+          hidden
+          type="file"
+          accept=".md,text/markdown,text/plain"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            if (file) onImportStoryFile(file);
+            event.target.value = "";
+          }}
+        />
       </div>
       <div className="i18n-slot story-i18n-slot" data-i18n-slot="desktop" />
       {error && <div className="story-switch-error">{error}</div>}
