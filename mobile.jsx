@@ -7,9 +7,6 @@
 
 const { useState, useEffect, useMemo, useRef } = React;
 
-const LSM_WORLD = "aevenmere.world.v2";
-const LSM_YEAR  = "aevenmere.year.v2";
-
 function mobT(s) {
   return window.AEVEN_I18N?.t ? window.AEVEN_I18N.t(s) : s;
 }
@@ -20,25 +17,15 @@ const KIND_LABEL = {
 };
 
 function MobileApp() {
-  // Share state with desktop app's localStorage so edits made on either side
-  // surface on the other (read-only here).
-  const [world, setWorld] = useState(() => {
-    try {
-      const raw = localStorage.getItem(LSM_WORLD);
-      if (raw) {
-        const w = JSON.parse(raw);
-        if (!w.library) w.library = JSON.parse(JSON.stringify(window.WORLD_SEED.library || {}));
-        return w;
-      }
-    } catch {}
-    return JSON.parse(JSON.stringify(window.WORLD_SEED));
-  });
-  const [currentYear, setCurrentYear] = useState(() => {
-    try { const y = localStorage.getItem(LSM_YEAR); if (y) return parseInt(y); } catch {}
-    return 1209;
-  });
-  useEffect(() => { try { localStorage.setItem(LSM_WORLD, JSON.stringify(world)); } catch {} }, [world]);
-  useEffect(() => { try { localStorage.setItem(LSM_YEAR, String(currentYear)); } catch {} }, [currentYear]);
+  const seedWorld = useMemo(() => window.StoryStore.normalizeWorld(window.WORLD_SEED), []);
+  const [world, setWorld] = useState(seedWorld);
+  const [stories, setStories] = useState([]);
+  const [activeStory, setActiveStory] = useState(null);
+  const [storyReady, setStoryReady] = useState(false);
+  const [storeMode, setStoreMode] = useState("loading");
+  const [storyStatus, setStoryStatus] = useState("loading");
+  const [storyError, setStoryError] = useState(null);
+  const [currentYear, setCurrentYear] = useState(seedWorld.defaultYear);
 
   const [view, setView] = useState("map"); // map | chronicle | codex | leaf
   const [folio, setFolio] = useState("atelier"); // atelier | library
@@ -53,13 +40,175 @@ function MobileApp() {
   const [busy, setBusy] = useState(null);
   const [err, setErr] = useState(null);
 
+  useEffect(() => {
+    let alive = true;
+    setStoryStatus("loading");
+    window.StoryStore.loadInitial(seedWorld)
+      .then((loaded) => {
+        if (!alive) return;
+        setStories(loaded.stories || []);
+        setActiveStory(loaded.activeStory);
+        setWorld(loaded.world);
+        setCurrentYear(window.StoryStore.getYear(loaded.activeStory.id, loaded.world));
+        setFolio(window.StoryStore.getUi(loaded.activeStory.id, "folio", "atelier"));
+        setFocusId(window.StoryStore.firstFocus(loaded.world));
+        setSelectedRegionId(loaded.world.regions[0]?.id || null);
+        setStoreMode(loaded.mode);
+        setStoryError(loaded.error ? String(loaded.error.message || loaded.error) : null);
+        setStoryReady(true);
+        setStoryStatus(loaded.mode === "api" ? "ready" : "static");
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setStoryError(String(error.message || error));
+        setStoryReady(true);
+        setStoreMode("static");
+        setStoryStatus("error");
+      });
+    return () => { alive = false; };
+  }, [seedWorld]);
+
+  useEffect(() => {
+    if (!storyReady || !activeStory) return;
+    const timer = window.setTimeout(() => {
+      setStoryStatus(storeMode === "api" ? "saving" : "static");
+      window.StoryStore.saveWorld(activeStory.id, world, storeMode)
+        .then((saved) => {
+          if (saved.stories) setStories(saved.stories);
+          if (saved.story) setActiveStory(saved.story);
+          setStoryError(null);
+          setStoryStatus(storeMode === "api" ? "saved" : "static");
+        })
+        .catch((error) => {
+          setStoryError(String(error.message || error));
+          setStoryStatus("error");
+        });
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [world, activeStory?.id, storyReady, storeMode]);
+
+  useEffect(() => {
+    if (!storyReady || !activeStory) return;
+    window.StoryStore.setUi(activeStory.id, "year", currentYear);
+  }, [currentYear, activeStory?.id, storyReady]);
+
+  useEffect(() => {
+    if (!storyReady || !activeStory) return;
+    window.StoryStore.setUi(activeStory.id, "folio", folio);
+  }, [folio, activeStory?.id, storyReady]);
+
+  const applyLoadedStory = (loaded) => {
+    const nextWorld = window.StoryStore.normalizeWorld(loaded.world);
+    const nextStory = loaded.story || window.StoryStore.storyFromWorld(nextWorld);
+    setActiveStory(nextStory);
+    setWorld(nextWorld);
+    setCurrentYear(window.StoryStore.getYear(nextStory.id, nextWorld));
+    setFolio(window.StoryStore.getUi(nextStory.id, "folio", "atelier"));
+    setFocusId(window.StoryStore.firstFocus(nextWorld));
+    setSelectedRegionId(nextWorld.regions[0]?.id || null);
+    setStory("");
+    setHint("");
+    setErr(null);
+    window.StoryStore.saveActiveStoryId(nextStory.id);
+  };
+
+  const onSelectStory = async (storyId) => {
+    if (!storyId || storyId === activeStory?.id || storeMode !== "api") return;
+    setStoryStatus("loading");
+    try {
+      const loaded = await window.StoryStore.loadStory(storyId);
+      applyLoadedStory(loaded);
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onCreateStory = async () => {
+    if (storeMode !== "api") return;
+    const title = prompt("Name this new story", "Untitled Story");
+    if (!title) return;
+    setStoryStatus("loading");
+    try {
+      const created = await window.StoryStore.createStory({ title });
+      setStories(created.stories || []);
+      applyLoadedStory(created);
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onDuplicateStory = async () => {
+    if (storeMode !== "api" || !activeStory) return;
+    const title = prompt("Name the duplicate story", `${world.name} Copy`);
+    if (!title) return;
+    setStoryStatus("loading");
+    try {
+      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id });
+      setStories(created.stories || []);
+      applyLoadedStory(created);
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onRenameStory = async () => {
+    if (storeMode !== "api" || !activeStory) return;
+    const name = prompt("Rename this story", world.name);
+    if (!name || name === world.name) return;
+    setStoryStatus("saving");
+    try {
+      const renamed = await window.StoryStore.renameStory(activeStory.id, { name });
+      setStories(renamed.stories || stories);
+      applyLoadedStory(renamed);
+      setStoryError(null);
+      setStoryStatus("saved");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onArchiveStory = async () => {
+    if (storeMode !== "api" || !activeStory) return;
+    if (!confirm(`Archive "${world.name}"? Its Markdown files will move into stories/_archived.`)) return;
+    setStoryStatus("loading");
+    try {
+      const archived = await window.StoryStore.archiveStory(activeStory.id);
+      const remaining = archived.stories || [];
+      setStories(remaining);
+      if (remaining.length) {
+        const loaded = await window.StoryStore.loadStory(remaining[0].id);
+        applyLoadedStory(loaded);
+      } else {
+        const created = await window.StoryStore.createStory({ title: "Untitled Story" });
+        setStories(created.stories || []);
+        applyLoadedStory(created);
+      }
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
   // Sheet state — opens when a region / entity is picked
   const sheetOpen = !!(focusId || selectedRegionId);
 
   const era = useMemo(
-    () => world.eras.find((e) => currentYear >= e.start && currentYear <= e.end) || world.eras[world.eras.length - 1],
+    () => world.eras.find((e) => currentYear >= e.start && currentYear <= e.end) || world.eras[world.eras.length - 1] || { name: "" },
     [world.eras, currentYear]
   );
+  const canUseStoryApi = storeMode === "api";
 
   const counts = {
     events: world.events.length,
@@ -207,15 +356,31 @@ function MobileApp() {
       {/* TOP */}
       <header className="mob-top">
         <div>
-          <h1 className="mob-title">Aevenmere<em>An atlas, in the palm</em></h1>
+          <h1 className="mob-title">{world.name}<em>{world.subtitle || "An atlas, in the palm"}</em></h1>
+          <MobileStoryBar
+            stories={stories}
+            activeStory={activeStory}
+            status={storyStatus}
+            error={storyError}
+            disabled={!storyReady}
+            canUseApi={canUseStoryApi}
+            onSelectStory={onSelectStory}
+            onCreateStory={onCreateStory}
+            onDuplicateStory={onDuplicateStory}
+            onRenameStory={onRenameStory}
+            onArchiveStory={onArchiveStory}
+          />
           <div className="mob-top-folio">
             <button className={folio === "atelier" ? "on" : ""} onClick={() => setFolio("atelier")}>I·II Atelier</button>
             <button className={folio === "library" ? "on" : ""} onClick={() => setFolio("library")}>III Library</button>
           </div>
         </div>
-        <div className="mob-year-pill">
-          <div className="mob-year">{AVN.yearLabel(currentYear)}</div>
-          <div className="mob-era">{era.name}</div>
+        <div className="mob-top-side">
+          <div className="i18n-slot mob-i18n-slot" data-i18n-slot="mobile" />
+          <div className="mob-year-pill">
+            <div className="mob-year">{AVN.yearLabel(currentYear)}</div>
+            <div className="mob-era">{era.name}</div>
+          </div>
         </div>
       </header>
 
@@ -260,6 +425,45 @@ function MobileApp() {
 // ─────────────────────────────────────────────────────────────
 // MobileMap — full-bleed map + side scrubber + layer chips
 // ─────────────────────────────────────────────────────────────
+function MobileStoryBar({
+  stories,
+  activeStory,
+  status,
+  error,
+  disabled,
+  canUseApi,
+  onSelectStory,
+  onCreateStory,
+  onDuplicateStory,
+  onRenameStory,
+  onArchiveStory
+}) {
+  return (
+    <div className={`mob-storybar ${canUseApi ? "is-api" : "is-static"}`}>
+      <div className="mob-storybar-main">
+        <select
+          className="mob-story-select"
+          value={activeStory?.id || ""}
+          disabled={disabled || !canUseApi}
+          onChange={(event) => onSelectStory(event.target.value)}
+        >
+          {(stories || []).map((story) => (
+            <option key={story.id} value={story.id}>{story.name}</option>
+          ))}
+        </select>
+        <span className={`mob-story-state ${status === "error" ? "is-error" : ""}`}>{status}</span>
+      </div>
+      <div className="mob-story-actions">
+        <button disabled={!canUseApi || disabled} onClick={onCreateStory}>New</button>
+        <button disabled={!canUseApi || disabled || !activeStory} onClick={onDuplicateStory}>Copy</button>
+        <button disabled={!canUseApi || disabled || !activeStory} onClick={onRenameStory}>Name</button>
+        <button disabled={!canUseApi || disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+      </div>
+      {error && <div className="mob-story-error">{error}</div>}
+    </div>
+  );
+}
+
 function MobileMap({ world, currentYear, layers, setLayers, selectedRegionId, onSelectRegion, focusId, onFocus, onYear }) {
   const railRef = useRef(null);
 

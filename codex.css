@@ -292,7 +292,7 @@
 
 /* ── Grid placement of codex inside .atelier ───────── */
 .atelier {
-  grid-template-rows: 760px auto !important;
+  grid-template-rows: auto auto !important;
   height: auto;
   min-height: 100vh;
 }
@@ -307,5 +307,5 @@
   .atelier .codex { grid-row: 3; }
 }
 @media (min-width: 1180px) {
-  .atelier { grid-template-rows: minmax(720px, 78vh) auto !important; }
+  .atelier { grid-template-rows: auto auto !important; }
 }

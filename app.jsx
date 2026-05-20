@@ -6,39 +6,27 @@ const KIND_LABELS = { event: "Event", character: "Character", organization: "Org
 
 function uid(p) { return p + "_" + Math.random().toString(36).slice(2, 8); }
 
-const LS_WORLD = "aevenmere.world.v2";
-const LS_YEAR  = "aevenmere.year.v2";
 const LS_ORIENT = "aevenmere.orient.v1";
 
 const App = () => {
-  const [world, setWorld] = useState(() => {
-    try {
-      const raw = localStorage.getItem(LS_WORLD);
-      if (raw) {
-        const w = JSON.parse(raw);
-        // Migrate forward: graft missing branches from the seed.
-        if (!w.library) w.library = JSON.parse(JSON.stringify(window.WORLD_SEED.library));
-        return w;
-      }
-    } catch {}
-    return JSON.parse(JSON.stringify(window.WORLD_SEED));
-  });
-  const [currentYear, setCurrentYear] = useState(() => {
-    try { const y = localStorage.getItem(LS_YEAR); if (y) return parseInt(y); } catch {}
-    return 1209;
-  });
+  const seedWorld = useMemo(() => window.StoryStore.normalizeWorld(window.WORLD_SEED), []);
+  const [world, setWorld] = useState(seedWorld);
+  const [stories, setStories] = useState([]);
+  const [activeStory, setActiveStory] = useState(null);
+  const [storyReady, setStoryReady] = useState(false);
+  const [storeMode, setStoreMode] = useState("loading");
+  const [storyStatus, setStoryStatus] = useState("loading");
+  const [storyError, setStoryError] = useState(null);
+  const [currentYear, setCurrentYear] = useState(seedWorld.defaultYear);
   const [windowSize, setWindowSize] = useState(120);
   const [orient, setOrient] = useState(() => {
     try { return localStorage.getItem(LS_ORIENT) || "vertical"; } catch { return "vertical"; }
   });
   useEffect(() => { try { localStorage.setItem(LS_ORIENT, orient); } catch {} }, [orient]);
-  const [folio, setFolio] = useState(() => {
-    try { return localStorage.getItem("aevenmere.folio") || "atelier"; } catch { return "atelier"; }
-  });
-  useEffect(() => { try { localStorage.setItem("aevenmere.folio", folio); } catch {} }, [folio]);
+  const [folio, setFolio] = useState("atelier");
   const [tab, setTab] = useState("events");
-  const [focusId, setFocusId] = useState("ev_arrival");
-  const [selectedRegionId, setSelectedRegionId] = useState("isles");
+  const [focusId, setFocusId] = useState(() => window.StoryStore.firstFocus(seedWorld));
+  const [selectedRegionId, setSelectedRegionId] = useState(seedWorld.regions[0]?.id || null);
   const [layers, setLayers] = useState({ events: true, countries: true, orgs: true, characters: true, conflicts: true, eventsWindow: 200 });
   const [drawing, setDrawing] = useState(null); // { entityId, key:'countries'|'organizations', accent }
   const [story, setStory] = useState("");
@@ -46,8 +34,167 @@ const App = () => {
   const [busy, setBusy] = useState(null);
   const [err, setErr] = useState(null);
 
-  useEffect(() => { try { localStorage.setItem(LS_WORLD, JSON.stringify(world)); } catch {} }, [world]);
-  useEffect(() => { try { localStorage.setItem(LS_YEAR, String(currentYear)); } catch {} }, [currentYear]);
+  useEffect(() => {
+    let alive = true;
+    setStoryStatus("loading");
+    window.StoryStore.loadInitial(seedWorld)
+      .then((loaded) => {
+        if (!alive) return;
+        setStories(loaded.stories || []);
+        setActiveStory(loaded.activeStory);
+        setWorld(loaded.world);
+        setCurrentYear(window.StoryStore.getYear(loaded.activeStory.id, loaded.world));
+        setFolio(window.StoryStore.getUi(loaded.activeStory.id, "folio", "atelier"));
+        setFocusId(window.StoryStore.firstFocus(loaded.world));
+        setSelectedRegionId(loaded.world.regions[0]?.id || null);
+        setStoreMode(loaded.mode);
+        setStoryError(loaded.error ? String(loaded.error.message || loaded.error) : null);
+        setStoryReady(true);
+        setStoryStatus(loaded.mode === "api" ? "ready" : "static");
+      })
+      .catch((error) => {
+        if (!alive) return;
+        setStoryError(String(error.message || error));
+        setStoryReady(true);
+        setStoreMode("static");
+        setStoryStatus("error");
+      });
+    return () => { alive = false; };
+  }, [seedWorld]);
+
+  useEffect(() => {
+    if (!storyReady || !activeStory) return;
+    const timer = window.setTimeout(() => {
+      setStoryStatus(storeMode === "api" ? "saving" : "static");
+      window.StoryStore.saveWorld(activeStory.id, world, storeMode)
+        .then((saved) => {
+          if (saved.stories) setStories(saved.stories);
+          if (saved.story) setActiveStory(saved.story);
+          setStoryError(null);
+          setStoryStatus(storeMode === "api" ? "saved" : "static");
+        })
+        .catch((error) => {
+          setStoryError(String(error.message || error));
+          setStoryStatus("error");
+        });
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [world, activeStory?.id, storyReady, storeMode]);
+
+  useEffect(() => {
+    if (!storyReady || !activeStory) return;
+    window.StoryStore.setUi(activeStory.id, "year", currentYear);
+  }, [currentYear, activeStory?.id, storyReady]);
+
+  useEffect(() => {
+    if (!storyReady || !activeStory) return;
+    window.StoryStore.setUi(activeStory.id, "folio", folio);
+  }, [folio, activeStory?.id, storyReady]);
+
+  const applyLoadedStory = (loaded) => {
+    const nextWorld = window.StoryStore.normalizeWorld(loaded.world);
+    const nextStory = loaded.story || window.StoryStore.storyFromWorld(nextWorld);
+    setActiveStory(nextStory);
+    setWorld(nextWorld);
+    setCurrentYear(window.StoryStore.getYear(nextStory.id, nextWorld));
+    setFolio(window.StoryStore.getUi(nextStory.id, "folio", "atelier"));
+    setFocusId(window.StoryStore.firstFocus(nextWorld));
+    setSelectedRegionId(nextWorld.regions[0]?.id || null);
+    setDrawing(null);
+    setStory("");
+    setHint("");
+    setErr(null);
+    window.StoryStore.saveActiveStoryId(nextStory.id);
+  };
+
+  const onSelectStory = async (storyId) => {
+    if (!storyId || storyId === activeStory?.id || storeMode !== "api") return;
+    setStoryStatus("loading");
+    try {
+      const loaded = await window.StoryStore.loadStory(storyId);
+      applyLoadedStory(loaded);
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onCreateStory = async () => {
+    if (storeMode !== "api") return;
+    const title = prompt("Name this new story", "Untitled Story");
+    if (!title) return;
+    setStoryStatus("loading");
+    try {
+      const created = await window.StoryStore.createStory({ title });
+      setStories(created.stories || []);
+      applyLoadedStory(created);
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onDuplicateStory = async () => {
+    if (storeMode !== "api" || !activeStory) return;
+    const title = prompt("Name the duplicate story", `${world.name} Copy`);
+    if (!title) return;
+    setStoryStatus("loading");
+    try {
+      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id });
+      setStories(created.stories || []);
+      applyLoadedStory(created);
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onRenameStory = async () => {
+    if (storeMode !== "api" || !activeStory) return;
+    const name = prompt("Rename this story", world.name);
+    if (!name || name === world.name) return;
+    setStoryStatus("saving");
+    try {
+      const renamed = await window.StoryStore.renameStory(activeStory.id, { name });
+      setStories(renamed.stories || stories);
+      applyLoadedStory(renamed);
+      setStoryError(null);
+      setStoryStatus("saved");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
+
+  const onArchiveStory = async () => {
+    if (storeMode !== "api" || !activeStory) return;
+    if (!confirm(`Archive "${world.name}"? Its Markdown files will move into stories/_archived.`)) return;
+    setStoryStatus("loading");
+    try {
+      const archived = await window.StoryStore.archiveStory(activeStory.id);
+      const remaining = archived.stories || [];
+      setStories(remaining);
+      if (remaining.length) {
+        const loaded = await window.StoryStore.loadStory(remaining[0].id);
+        applyLoadedStory(loaded);
+      } else {
+        const created = await window.StoryStore.createStory({ title: "Untitled Story" });
+        setStories(created.stories || []);
+        applyLoadedStory(created);
+      }
+      setStoryError(null);
+      setStoryStatus("ready");
+    } catch (error) {
+      setStoryError(String(error.message || error));
+      setStoryStatus("error");
+    }
+  };
 
   // Focus auto-switches tab to match entity kind
   useEffect(() => {
@@ -61,7 +208,7 @@ const App = () => {
 
   // ── Drawing territories ─────────────────────────────
   const startDrawing = (entityId, key) => {
-    const ent = world[key].find((e) => e.id === entityId);
+    const ent = (world[key] || []).find((e) => e.id === entityId);
     if (!ent) return;
     setDrawing({ entityId, key, name: ent.name, accent: ent.accent });
     setFocusId(entityId);
@@ -70,7 +217,7 @@ const App = () => {
   const commitDrawing = (territoryStr) => {
     if (!drawing) return;
     const { entityId, key } = drawing;
-    const ent = world[key].find((e) => e.id === entityId);
+    const ent = (world[key] || []).find((e) => e.id === entityId);
     if (!ent) return;
     const snaps = ent.snapshots || [];
     const existing = snaps.find((s) => s.year === currentYear);
@@ -86,8 +233,8 @@ const App = () => {
   };
 
   // ── Mutations ───────────────────────────────────────
-  const setEnt = (key, id, patch) => setWorld((w) => ({ ...w, [key]: w[key].map((e) => e.id === id ? { ...e, ...patch } : e) }));
-  const delEnt = (key, id) => setWorld((w) => ({ ...w, [key]: w[key].filter((e) => e.id !== id) }));
+  const setEnt = (key, id, patch) => setWorld((w) => ({ ...w, [key]: (w[key] || []).map((e) => e.id === id ? { ...e, ...patch } : e) }));
+  const delEnt = (key, id) => setWorld((w) => ({ ...w, [key]: (w[key] || []).filter((e) => e.id !== id) }));
 
   const updateEvent = (id, patch) => setEnt("events", id, patch);
   const deleteEvent = (id) => { delEnt("events", id); if (focusId === id) setFocusId(null); };
@@ -100,9 +247,18 @@ const App = () => {
 
   // Snapshots — entity, snap object reference
   const snapMutator = (key) => ({
-    add: (id, snap) => setEnt(key, id, { snapshots: [...(world[key].find((e) => e.id === id).snapshots || []), snap] }),
-    update: (id) => (oldSnap, patch) => setEnt(key, id, { snapshots: world[key].find((e) => e.id === id).snapshots.map((s) => s === oldSnap ? { ...s, ...patch } : s) }),
-    del: (id) => (snap) => setEnt(key, id, { snapshots: world[key].find((e) => e.id === id).snapshots.filter((s) => s !== snap) })
+    add: (id, snap) => {
+      const ent = (world[key] || []).find((e) => e.id === id);
+      if (ent) setEnt(key, id, { snapshots: [...(ent.snapshots || []), snap] });
+    },
+    update: (id) => (oldSnap, patch) => {
+      const ent = (world[key] || []).find((e) => e.id === id);
+      if (ent) setEnt(key, id, { snapshots: (ent.snapshots || []).map((s) => s === oldSnap ? { ...s, ...patch } : s) });
+    },
+    del: (id) => (snap) => {
+      const ent = (world[key] || []).find((e) => e.id === id);
+      if (ent) setEnt(key, id, { snapshots: (ent.snapshots || []).filter((s) => s !== snap) });
+    }
   });
 
   // Relationships
@@ -113,8 +269,8 @@ const App = () => {
     const id = uid("rl");
     setWorld((w) => ({ ...w, relationships: [...(w.relationships || []), { id, a: entityId, b: other.id, kind: "ally", since: currentYear, until: null, note: "" }] }));
   };
-  const updateRel = (id, patch) => setWorld((w) => ({ ...w, relationships: w.relationships.map((r) => r.id === id ? { ...r, ...patch } : r) }));
-  const deleteRel = (id) => setWorld((w) => ({ ...w, relationships: w.relationships.filter((r) => r.id !== id) }));
+  const updateRel = (id, patch) => setWorld((w) => ({ ...w, relationships: (w.relationships || []).map((r) => r.id === id ? { ...r, ...patch } : r) }));
+  const deleteRel = (id) => setWorld((w) => ({ ...w, relationships: (w.relationships || []).filter((r) => r.id !== id) }));
 
   // ── Add blanks ──────────────────────────────────────
   const addBlankEvent = () => {
@@ -216,8 +372,10 @@ const App = () => {
 
   const onReset = () => {
     if (!confirm(window.AEVEN_I18N?.t("Re-cast the world to its original seed? Edits will be lost.") || "Re-cast the world to its original seed? Edits will be lost.")) return;
-    const fresh = JSON.parse(JSON.stringify(window.WORLD_SEED));
-    setWorld(fresh); setCurrentYear(1209); setFocusId("ev_arrival");
+    const fresh = window.StoryStore.normalizeWorld({ ...window.WORLD_SEED, storyId: activeStory?.id || "aevenmere" });
+    setWorld(fresh);
+    setCurrentYear(fresh.defaultYear);
+    setFocusId(window.StoryStore.firstFocus(fresh));
   };
 
   // ── Render helpers ──────────────────────────────────
@@ -304,9 +462,27 @@ const App = () => {
   };
 
   const focusedKind = focusId ? AVN.entityKind(world, focusId) : null;
-  const currentEra = world.eras.find((e) => currentYear >= e.start && currentYear <= e.end) || world.eras[world.eras.length - 1];
+  const currentEra = world.eras.find((e) => currentYear >= e.start && currentYear <= e.end) || world.eras[world.eras.length - 1] || { name: "" };
 
   const isHorizontal = orient === "horizontal";
+  const canUseStoryApi = storeMode === "api";
+
+  const storyBar = (
+    <StoryWorkspaceBar
+      stories={stories}
+      activeStory={activeStory}
+      mode={storeMode}
+      status={storyStatus}
+      error={storyError}
+      disabled={!storyReady}
+      canUseApi={canUseStoryApi}
+      onSelectStory={onSelectStory}
+      onCreateStory={onCreateStory}
+      onDuplicateStory={onDuplicateStory}
+      onRenameStory={onRenameStory}
+      onArchiveStory={onArchiveStory}
+    />
+  );
 
   // ── Top-level folio switcher (Atelier vs Library) ──
   const switcher = (
@@ -325,6 +501,7 @@ const App = () => {
   if (folio === "library") {
     return (
       <div>
+        {storyBar}
         {switcher}
         <Library world={world} setWorld={setWorld} currentYear={currentYear}
                  focusId={focusId} onFocus={(id) => { setFocusId(id); setFolio("atelier"); }}
@@ -335,6 +512,7 @@ const App = () => {
 
   return (
     <div>
+      {storyBar}
       {switcher}
       <div className={`atelier ${isHorizontal ? "stage-horizontal" : "stage-vertical"}`}>
       {/* LEFT — Inspector */}
@@ -376,7 +554,7 @@ const App = () => {
           </div>
         </section>
 
-        <section className="panel" style={{ flex: 0 }}>
+        <section className="panel" style={{ flex: "0 0 auto" }}>
           <header className="panel-head"><h3>The Leaf</h3></header>
           <div className="panel-body ai-desk">
             <input className="ai-input" placeholder="Optional direction for AI — 'they meet in the rain'…"
@@ -394,7 +572,7 @@ const App = () => {
       {/* CENTER — Map + Timeline */}
       <main className="stage">
         <div className="topbar">
-          <h1>The Atelier of Aevenmere</h1>
+          <h1>The Atelier of {world.name}</h1>
           <div className="layer-toggles">
             {[
               { k: "countries", l: "Countries" },
@@ -472,5 +650,55 @@ const App = () => {
     </div>
   );
 };
+
+function StoryWorkspaceBar({
+  stories,
+  activeStory,
+  mode,
+  status,
+  error,
+  disabled,
+  canUseApi,
+  onSelectStory,
+  onCreateStory,
+  onDuplicateStory,
+  onRenameStory,
+  onArchiveStory
+}) {
+  const statusLabel =
+    status === "saving" ? "saving" :
+    status === "saved" ? "saved" :
+    status === "loading" ? "loading" :
+    status === "static" ? "static fallback" :
+    status === "error" ? "error" :
+    mode === "api" ? "markdown wiki" : mode;
+
+  return (
+    <div className={`story-switch ${canUseApi ? "is-api" : "is-static"}`}>
+      <div className="story-switch-main">
+        <span className="story-switch-kicker">Story wiki</span>
+        <select
+          className="story-select"
+          value={activeStory?.id || ""}
+          disabled={disabled || !canUseApi}
+          onChange={(event) => onSelectStory(event.target.value)}
+        >
+          {(stories || []).map((story) => (
+            <option key={story.id} value={story.id}>{story.name}</option>
+          ))}
+        </select>
+        <span className={`story-save-state ${status === "error" ? "is-error" : ""}`}>{statusLabel}</span>
+      </div>
+      <div className="story-actions">
+        <button className="story-action" disabled={!canUseApi || disabled} onClick={onCreateStory}>New</button>
+        <button className="story-action" disabled={!canUseApi || disabled || !activeStory} onClick={onDuplicateStory}>Duplicate</button>
+        <button className="story-action" disabled={!canUseApi || disabled || !activeStory} onClick={onRenameStory}>Rename</button>
+        <button className="story-action danger" disabled={!canUseApi || disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+      </div>
+      <div className="i18n-slot story-i18n-slot" data-i18n-slot="desktop" />
+      {error && <div className="story-switch-error">{error}</div>}
+    </div>
+  );
+}
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);

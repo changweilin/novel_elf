@@ -836,17 +836,37 @@
     const style = document.createElement("style");
     style.id = "aevenmere-i18n-style";
     style.textContent = `
-      .i18n-switcher{position:fixed;right:16px;top:16px;z-index:2147483000;display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid rgba(238,227,204,.24);border-radius:8px;background:rgba(17,20,17,.74);color:#eee3cc;backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);box-shadow:0 10px 30px rgba(0,0,0,.28);font:12px/1.2 ui-sans-serif,system-ui,-apple-system,sans-serif}
+      .i18n-slot{display:flex;align-items:center;min-width:0}
+      .i18n-switcher{display:inline-flex;align-items:center;gap:8px;padding:6px 8px;border:1px solid rgba(238,227,204,.24);border-radius:8px;background:rgba(17,20,17,.74);color:#eee3cc;font:12px/1.2 ui-sans-serif,system-ui,-apple-system,sans-serif}
+      body>.i18n-switcher{display:flex;justify-content:flex-end;border-radius:0;border-left:0;border-right:0;border-top:0;background:#0e0b07;padding:8px 16px}
       .i18n-switcher label{font-weight:700;color:#d2a85f;letter-spacing:0;text-transform:none}
       .i18n-switcher select{height:28px;min-width:118px;border:1px solid rgba(238,227,204,.22);border-radius:6px;background:#171d20;color:#eee3cc;padding:0 8px;font:12px/1.2 ui-sans-serif,system-ui,-apple-system,sans-serif}
       .i18n-switcher select:focus{outline:2px solid rgba(210,168,95,.55);outline-offset:2px}
-      @media (max-width:680px){.i18n-switcher{top:10px;right:10px;padding:7px}.i18n-switcher label{display:none}.i18n-switcher select{min-width:92px}}
+      @media (max-width:680px){.i18n-switcher{padding:6px}.i18n-switcher label{display:none}.i18n-switcher select{min-width:92px}}
     `;
     document.head.appendChild(style);
   }
 
+  let switcherEl = null;
+
+  function mountSwitcher() {
+    if (!switcherEl || !document.body) return;
+    const slot = document.querySelector(".i18n-slot");
+    const host = slot || document.body;
+    if (switcherEl.parentElement !== host) {
+      if (host === document.body) document.body.insertBefore(switcherEl, document.body.firstElementChild);
+      else host.appendChild(switcherEl);
+    } else if (host === document.body && document.body.firstElementChild !== switcherEl) {
+      document.body.insertBefore(switcherEl, document.body.firstElementChild);
+    }
+  }
+
   function createSwitcher() {
-    if (document.querySelector(".i18n-switcher")) return;
+    if (document.querySelector(".i18n-switcher")) {
+      switcherEl = document.querySelector(".i18n-switcher");
+      mountSwitcher();
+      return;
+    }
     injectStyles();
     const wrap = document.createElement("div");
     wrap.className = "i18n-switcher";
@@ -866,7 +886,9 @@
     select.value = currentLang;
     select.addEventListener("change", () => setLang(select.value));
     wrap.append(label, select);
-    document.body.appendChild(wrap);
+    switcherEl = wrap;
+    mountSwitcher();
+    window.requestAnimationFrame(mountSwitcher);
     onChange((lang) => {
       select.value = lang;
       label.textContent = tr("Language", lang);
@@ -883,6 +905,7 @@
         if (m.type === "characterData") walk(m.target);
         if (m.type === "attributes") translateAttributes(m.target);
       }
+      mountSwitcher();
     });
     observer.observe(document.body, {
       childList: true,

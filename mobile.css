@@ -41,6 +41,75 @@
   display: block; font-size: 11px; margin-top: 2px;
   opacity: 0.85;
 }
+.mob-storybar {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  max-width: 250px;
+}
+.mob-storybar-main {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.mob-story-select {
+  min-width: 0;
+  width: 152px;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #3a2d20;
+  border-radius: 6px;
+  background: #15110b;
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: 12px;
+}
+.mob-story-state {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gold-2);
+  white-space: nowrap;
+}
+.mob-story-state.is-error,
+.mob-story-error {
+  color: #d57964;
+}
+.mob-story-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
+}
+.mob-story-actions button {
+  height: 24px;
+  padding: 0 4px;
+  border: 1px solid #2a2218;
+  border-radius: 6px;
+  background: #0e0b07;
+  color: var(--slate);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.mob-story-actions button:disabled,
+.mob-story-select:disabled {
+  opacity: 0.45;
+}
+.mob-story-error {
+  font-family: var(--mono);
+  font-size: 8px;
+  line-height: 1.35;
+}
+.mob-top-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+}
 .mob-year-pill {
   display: inline-flex; flex-direction: column; align-items: flex-end;
   text-align: right;
@@ -296,16 +365,16 @@
 
 /* ── Bottom sheet ────────────────────────────────────── */
 .mob-sheet-backdrop {
-  position: absolute; inset: 0;
+  position: absolute; inset: 0 0 76px 0;
   background: rgba(10,8,5,0.55);
   z-index: 30;
   animation: sheet-fade 200ms ease;
 }
 @keyframes sheet-fade { from { opacity: 0; } to { opacity: 1; } }
 .mob-sheet {
-  position: absolute; left: 0; right: 0; bottom: 0;
+  position: absolute; left: 0; right: 0; bottom: 76px;
   z-index: 31;
-  max-height: 78%;
+  max-height: calc(78% - 76px);
   background:
     linear-gradient(180deg, #1a1610 0%, #15110b 100%);
   border-top: 1px solid var(--gold);
