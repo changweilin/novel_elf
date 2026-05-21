@@ -185,6 +185,44 @@ export async function readStoryArticle(storyDir, articleId) {
   };
 }
 
+export async function validateStoryArticleQuality(storyDir, articleId, options = {}) {
+  assertSafeArticleId(articleId);
+  const rootDir = resolve(storyDir);
+  const found = await findArticle(rootDir, articleId);
+  const target = await qualityTarget(rootDir, articleId, found, options);
+  const parsed = await readMarkdownFileSafe(target.filePath);
+  const world = await readWorldFromMarkdown(rootDir);
+  const issues = [
+    ...parsed.issues,
+    ...validateFrontmatterShape(found, parsed.meta),
+    ...validateWorldSync(world, parsed.meta, parsed.body),
+    ...validateConsistency(world, parsed.meta)
+  ];
+  const checks = ["markdown_parse", "world_sync", "consistency"].map((id) => ({
+    id,
+    status: checkStatus(id, issues),
+    issues: issues.filter((issue) => issue.check === id)
+  }));
+
+  return {
+    ok: !issues.some((issue) => issue.severity === "error" || issue.severity === "high"),
+    article: stripRuntimeFields(found),
+    target: {
+      kind: target.kind,
+      path: normalizeRel(relative(rootDir, target.filePath)),
+      draftId: target.draftId || null
+    },
+    checks,
+    issues,
+    summary: {
+      errors: issues.filter((issue) => issue.severity === "error").length,
+      high: issues.filter((issue) => issue.severity === "high").length,
+      medium: issues.filter((issue) => issue.severity === "medium").length,
+      low: issues.filter((issue) => issue.severity === "low").length
+    }
+  };
+}
+
 export async function buildArticleContextPack(storyDir, articleId, options = {}) {
   assertSafeArticleId(articleId);
   const rootDir = resolve(storyDir);
@@ -506,6 +544,151 @@ function summarizeAdjacent(article) {
   };
 }
 
+async function qualityTarget(rootDir, articleId, article, options) {
+  if (options.draftId) {
+    assertSafeFileId(options.draftId, "draft id");
+    const filePath = articleDraftPath(rootDir, articleId, options.draftId);
+    if (!(await exists(filePath))) {
+      throw httpError(404, `Draft not found: ${options.draftId}`);
+    }
+    return { kind: "draft", draftId: options.draftId, filePath };
+  }
+
+  return { kind: "official", filePath: article.filePath };
+}
+
+function validateFrontmatterShape(article, meta) {
+  const issues = [];
+  if (!meta || Object.keys(meta).length === 0) {
+    issues.push(qualityIssue("markdown_parse", "error", "frontmatter", "Article markdown must include JSON frontmatter."));
+    return issues;
+  }
+
+  if (!meta.id) {
+    issues.push(qualityIssue("markdown_parse", "error", "frontmatter.id", "Article frontmatter is missing an id."));
+  }
+
+  if (meta.kind && meta.kind !== article.kind) {
+    issues.push(qualityIssue("markdown_parse", "error", "frontmatter.kind", `Expected kind "${article.kind}" but found "${meta.kind}".`));
+  }
+
+  if (article.kind === "chapter") {
+    if (!meta.title) {
+      issues.push(qualityIssue("markdown_parse", "medium", "frontmatter.title", "Chapter frontmatter is missing a title."));
+    }
+    if (meta.year != null && finiteOrNull(meta.year) == null) {
+      issues.push(qualityIssue("markdown_parse", "error", "frontmatter.year", "Chapter year must be numeric when present."));
+    }
+  }
+
+  for (const key of ["focusIds", "eventIds", "sourceRefs"]) {
+    if (meta[key] != null && !Array.isArray(meta[key])) {
+      issues.push(qualityIssue("markdown_parse", "error", `frontmatter.${key}`, `${key} must be an array when present.`));
+    }
+  }
+
+  return issues;
+}
+
+function validateWorldSync(world, meta, body) {
+  const issues = [];
+  const indexes = worldLookup(world);
+
+  if (meta.placeId && !indexes.places.has(meta.placeId)) {
+    issues.push(qualityIssue("world_sync", "high", "frontmatter.placeId", `Unknown placeId "${meta.placeId}".`));
+  }
+
+  for (const [index, id] of arrayOf(meta.focusIds).entries()) {
+    if (!indexes.focusEntities.has(id)) {
+      issues.push(qualityIssue("world_sync", "high", `frontmatter.focusIds[${index}]`, `Unknown focus id "${id}".`));
+    }
+  }
+
+  if (meta.povId && !indexes.characters.has(meta.povId)) {
+    issues.push(qualityIssue("world_sync", "high", "frontmatter.povId", `Unknown povId "${meta.povId}".`));
+  }
+
+  for (const [index, id] of arrayOf(meta.eventIds).entries()) {
+    if (!indexes.events.has(id)) {
+      issues.push(qualityIssue("world_sync", "high", `frontmatter.eventIds[${index}]`, `Unknown event id "${id}".`));
+    }
+  }
+
+  for (const [index, id] of arrayOf(meta.sourceRefs).entries()) {
+    if (!indexes.allRefs.has(id)) {
+      issues.push(qualityIssue("world_sync", "medium", `frontmatter.sourceRefs[${index}]`, `Unknown sourceRef "${id}".`));
+    }
+  }
+
+  for (const ref of extractBracketRefs(body)) {
+    if (indexes.allRefs.has(ref) || illustrationIds(meta).has(ref) || indexes.normalizedNames.has(normalizeName(ref))) {
+      continue;
+    }
+    issues.push(qualityIssue("world_sync", "low", "markdownBody", `Bracket reference "${ref}" does not match a world id, world name, or illustration id.`));
+  }
+
+  return issues;
+}
+
+function validateConsistency(world, meta) {
+  const issues = [];
+  const year = finiteOrNull(meta.year ?? meta.defaultYear);
+  const indexes = worldLookup(world);
+  if (year == null) return issues;
+
+  for (const [field, ids] of [
+    ["frontmatter.focusIds", arrayOf(meta.focusIds)],
+    ["frontmatter.povId", meta.povId ? [meta.povId] : []]
+  ]) {
+    for (const id of ids) {
+      const entity = indexes.focusEntities.get(id);
+      if (!entity) continue;
+      issues.push(...lifespanIssues(entity, id, field, year));
+    }
+  }
+
+  for (const id of arrayOf(meta.eventIds)) {
+    const event = indexes.events.get(id);
+    if (!event) continue;
+    const eventYear = finiteOrNull(event.year);
+    if (eventYear != null && eventYear !== year) {
+      issues.push(qualityIssue("consistency", "medium", "frontmatter.eventIds", `Event "${id}" occurs in ${eventYear}, but the article year is ${year}.`));
+    }
+    if (meta.placeId && event.placeId && meta.placeId !== event.placeId) {
+      issues.push(qualityIssue("consistency", "medium", "frontmatter.placeId", `Event "${id}" is tied to "${event.placeId}", not article place "${meta.placeId}".`));
+    }
+  }
+
+  return issues;
+}
+
+function lifespanIssues(entity, id, field, year) {
+  const issues = [];
+  if (entity.kind === "character") {
+    const born = finiteOrNull(entity.born);
+    const died = finiteOrNull(entity.died);
+    if (born != null && year < born) {
+      issues.push(qualityIssue("consistency", "high", field, `Character "${id}" appears in ${year}, before birth year ${born}.`));
+    }
+    if (died != null && year > died) {
+      issues.push(qualityIssue("consistency", "high", field, `Character "${id}" appears in ${year}, after death year ${died}.`));
+    }
+  }
+
+  if (entity.kind === "organization" || entity.kind === "country") {
+    const founded = finiteOrNull(entity.founded);
+    const dissolved = finiteOrNull(entity.dissolved);
+    if (founded != null && year < founded) {
+      issues.push(qualityIssue("consistency", "high", field, `${entity.kind} "${id}" appears in ${year}, before founding year ${founded}.`));
+    }
+    if (dissolved != null && year > dissolved) {
+      issues.push(qualityIssue("consistency", "high", field, `${entity.kind} "${id}" appears in ${year}, after dissolved year ${dissolved}.`));
+    }
+  }
+
+  return issues;
+}
+
 function buildOutline(body) {
   return String(body || "").split(/\r?\n/).reduce((items, line, index) => {
     const match = line.match(/^(#{1,6})\s+(.+?)\s*#*$/);
@@ -749,6 +932,40 @@ async function readMarkdownFile(filePath) {
   };
 }
 
+async function readMarkdownFileSafe(filePath) {
+  try {
+    const raw = await readFile(filePath, "utf8");
+    const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/);
+    if (!match) {
+      return {
+        meta: {},
+        body: raw,
+        issues: [qualityIssue("markdown_parse", "error", "frontmatter", "Missing JSON frontmatter block.")]
+      };
+    }
+
+    try {
+      return {
+        meta: JSON.parse(match[1]),
+        body: raw.slice(match[0].length),
+        issues: []
+      };
+    } catch (error) {
+      return {
+        meta: {},
+        body: raw.slice(match[0].length),
+        issues: [qualityIssue("markdown_parse", "error", "frontmatter", `Invalid JSON frontmatter: ${error.message}`)]
+      };
+    }
+  } catch (error) {
+    return {
+      meta: {},
+      body: "",
+      issues: [qualityIssue("markdown_parse", "error", "file", `Unable to read markdown: ${error.message}`)]
+    };
+  }
+}
+
 function formatMarkdown(meta, body) {
   const text = body == null ? "" : String(body).replace(/\s+$/g, "");
   return `---\n${JSON.stringify(stripUndefined(meta), null, 2)}\n---\n${text}\n`;
@@ -824,6 +1041,7 @@ function countWords(body) {
 }
 
 function finiteOrNull(value) {
+  if (value == null || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -834,6 +1052,53 @@ function clamp(value, min, max) {
 
 function arrayOf(value) {
   return Array.isArray(value) ? value : [];
+}
+
+function worldLookup(world) {
+  const characters = new Map(arrayOf(world.characters).map((item) => [item.id, { ...item, kind: "character" }]));
+  const organizations = new Map(arrayOf(world.organizations).map((item) => [item.id, { ...item, kind: "organization" }]));
+  const countries = new Map(arrayOf(world.countries).map((item) => [item.id, { ...item, kind: "country" }]));
+  const places = new Map(arrayOf(world.places).map((item) => [item.id, item]));
+  const events = new Map(arrayOf(world.events).map((item) => [item.id, item]));
+  const focusEntities = new Map([...characters, ...organizations, ...countries]);
+  const allRefs = new Map([...focusEntities, ...places, ...events]);
+  const normalizedNames = new Set();
+
+  for (const item of allRefs.values()) {
+    if (item.name) normalizedNames.add(normalizeName(item.name));
+    if (item.title) normalizedNames.add(normalizeName(item.title));
+  }
+
+  return { characters, organizations, countries, places, events, focusEntities, allRefs, normalizedNames };
+}
+
+function extractBracketRefs(body) {
+  const refs = [];
+  const pattern = /!?\[\[([^\]]+)\]\]/g;
+  let match;
+  while ((match = pattern.exec(String(body || "")))) {
+    refs.push(String(match[1]).split(/[|#]/)[0].trim());
+  }
+  return refs.filter(Boolean);
+}
+
+function illustrationIds(meta) {
+  return new Set(arrayOf(meta.illustrations).map((item) => item?.id).filter(Boolean));
+}
+
+function normalizeName(value) {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function checkStatus(check, issues) {
+  const scoped = issues.filter((issue) => issue.check === check);
+  if (scoped.some((issue) => issue.severity === "error" || issue.severity === "high")) return "fail";
+  if (scoped.length) return "warn";
+  return "pass";
+}
+
+function qualityIssue(check, severity, field, message) {
+  return { check, severity, field, message };
 }
 
 function trimText(value, max) {

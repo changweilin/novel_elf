@@ -23,6 +23,7 @@ import {
   listArticleTaskSchemas,
   readStoryArticle,
   restoreStoryArticleVersion,
+  validateStoryArticleQuality,
   writeStoryArticleDraft
 } from "./story-articles.mjs";
 
@@ -204,6 +205,18 @@ async function handleApi(request, response, url) {
     return;
   }
 
+  const articleDraftQualityMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/drafts\/([^/]+)\/quality$/);
+  if (articleDraftQualityMatch && request.method === "GET") {
+    await ensureStories();
+    const id = decodeURIComponent(articleDraftQualityMatch[1]);
+    const articleId = decodeURIComponent(articleDraftQualityMatch[2]);
+    const draftId = decodeURIComponent(articleDraftQualityMatch[3]);
+    assertStoryId(id);
+    const result = await validateStoryArticleQuality(storyDir(id), articleId, { draftId });
+    sendJson(response, 200, result);
+    return;
+  }
+
   const articleDraftApplyMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/drafts\/([^/]+)\/apply$/);
   if (articleDraftApplyMatch && request.method === "POST") {
     await ensureStories();
@@ -237,6 +250,17 @@ async function handleApi(request, response, url) {
     assertStoryId(id);
     const body = await readJsonBody(request);
     const result = await restoreStoryArticleVersion(storyDir(id), articleId, versionId, body);
+    sendJson(response, 200, result);
+    return;
+  }
+
+  const articleQualityMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/quality$/);
+  if (articleQualityMatch && request.method === "GET") {
+    await ensureStories();
+    const id = decodeURIComponent(articleQualityMatch[1]);
+    const articleId = decodeURIComponent(articleQualityMatch[2]);
+    assertStoryId(id);
+    const result = await validateStoryArticleQuality(storyDir(id), articleId);
     sendJson(response, 200, result);
     return;
   }

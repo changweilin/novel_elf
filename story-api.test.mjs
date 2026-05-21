@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import test from "node:test";
 
 test("story API seeds, creates, saves, renames, and archives Markdown stories", async () => {
@@ -126,6 +126,12 @@ test("article API indexes chapters, reads article context, and writes safe draft
     assert.ok(context.sections.some((section) => section.kind === "article"));
     assert.ok(context.sections.some((section) => section.kind === "article_body"));
 
+    const quality = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/quality`);
+    assert.equal(quality.ok, true);
+    assert.equal(quality.checks.find((check) => check.id === "markdown_parse").status, "pass");
+    assert.equal(quality.checks.find((check) => check.id === "world_sync").status, "pass");
+    assert.equal(quality.checks.find((check) => check.id === "consistency").status, "pass");
+
     const nextBody = `${detail.markdownBody.trim()}\n\nDraft-only test line.`;
     const draft = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts`, {
       method: "POST",
@@ -157,6 +163,52 @@ test("article API indexes chapters, reads article context, and writes safe draft
     const patchDraftText = await readFile(join(storiesRoot, storyId, patchDraft.draft.path), "utf8");
     assert.match(patchDraftText, /"status": "patch-proposed"/);
     assert.match(patchDraftText, /Patch-only test line\./);
+
+    const missingRefsDraft = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts`, {
+      method: "POST",
+      body: JSON.stringify({
+        bodyPatch: { type: "append", text: "[[missing_place_marker]]" },
+        frontmatterPatch: {
+          placeId: "pl_missing",
+          focusIds: ["ch_missing"],
+          eventIds: ["ev_missing"]
+        }
+      })
+    });
+    const missingRefsQuality = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts/${encodeURIComponent(missingRefsDraft.draft.id)}/quality`);
+    assert.equal(missingRefsQuality.ok, false);
+    assert.equal(missingRefsQuality.checks.find((check) => check.id === "world_sync").status, "fail");
+    assert.ok(missingRefsQuality.issues.some((issue) => issue.field === "frontmatter.placeId"));
+    assert.ok(missingRefsQuality.issues.some((issue) => issue.field === "frontmatter.focusIds[0]"));
+    assert.ok(missingRefsQuality.issues.some((issue) => issue.field === "frontmatter.eventIds[0]"));
+
+    const contradictionDraft = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts`, {
+      method: "POST",
+      body: JSON.stringify({
+        bodyPatch: { type: "append", text: "Veshra steps onto the dock." },
+        frontmatterPatch: {
+          year: 1209,
+          placeId: "pl_brackhold",
+          focusIds: ["ch_veshra"],
+          eventIds: []
+        }
+      })
+    });
+    const contradictionQuality = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts/${encodeURIComponent(contradictionDraft.draft.id)}/quality`);
+    assert.equal(contradictionQuality.ok, false);
+    assert.equal(contradictionQuality.checks.find((check) => check.id === "consistency").status, "fail");
+    assert.ok(contradictionQuality.issues.some((issue) => issue.message.includes("after death year 1178")));
+
+    const malformedDraftId = "malformed_draft";
+    await writeFile(
+      join(storiesRoot, storyId, dirname(patchDraft.draft.path), `${malformedDraftId}.md`),
+      "---\n{\"kind\":\"chapter\",\n---\nBroken draft body.\n",
+      "utf8"
+    );
+    const malformedQuality = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts/${malformedDraftId}/quality`);
+    assert.equal(malformedQuality.ok, false);
+    assert.equal(malformedQuality.checks.find((check) => check.id === "markdown_parse").status, "fail");
+    assert.ok(malformedQuality.issues.some((issue) => issue.message.includes("Invalid JSON frontmatter")));
 
     await assert.rejects(
       request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts/${encodeURIComponent(patchDraft.draft.id)}/apply`, {
