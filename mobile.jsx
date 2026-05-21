@@ -333,10 +333,10 @@ function MobileApp() {
         <div className="mob-lib">
           {books.map((bk) => (
             <React.Fragment key={bk.id}>
-              <div className="mob-lib-chap" style={{ background: "#15110b", color: "var(--paper)", border: "1px solid #2a2218" }}>
+              <div className="mob-lib-chap" style={{ background: "var(--surface)", color: "var(--paper)", border: "1px solid var(--border)" }}>
                 <div className="mob-lib-num" style={{ color: "var(--gold-2)" }}>{mobT("Book")} · {mobT(bk.subtitle || "")}</div>
                 <div className="mob-lib-title" style={{ color: "var(--paper)" }}>{mobT(bk.title)}</div>
-                {bk.blurb && <div className="mob-lib-blurb" style={{ color: "#c9b896" }}>{mobT(bk.blurb)}</div>}
+                {bk.blurb && <div className="mob-lib-blurb" style={{ color: "var(--paper-dim)" }}>{mobT(bk.blurb)}</div>}
                 <div className="mob-lib-meta" style={{ color: "var(--slate)" }}>
                   {(bk.volumes || []).length} volumes
                   {bk.year != null ? ` · ${AVN.yearLabel(bk.year)}` : ""}
@@ -442,6 +442,7 @@ function MobileApp() {
           </div>
         </div>
         <div className="mob-top-side">
+          <window.ThemeToggle className="mob-theme-toggle" />
           <div className="i18n-slot mob-i18n-slot" data-i18n-slot="mobile" />
           <div className="mob-year-pill">
             <div className="mob-year">{AVN.yearLabel(currentYear)}</div>
@@ -902,7 +903,7 @@ function MobileLeaf({ world, currentYear, era, hint, setHint, story, setStory, b
             <span className="mob-sheet-pill">{counts.orgs} orders</span>
             <span className="mob-sheet-pill">{counts.countries} realms</span>
           </div>
-          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", color: "#c9b896", fontSize: 13.5, lineHeight: 1.55, margin: "8px 0 0" }}>
+          <p style={{ fontFamily: "var(--serif)", fontStyle: "italic", color: "var(--paper-dim)", fontSize: 13.5, lineHeight: 1.55, margin: "8px 0 0" }}>
             {mobT("Aevenmere, the sundered reach: highlands and marsh, ash and tide. Open a folio. Walk the years. Stay until something asks to be named.")}
           </p>
         </section>

@@ -855,6 +855,7 @@ function StoryWorkspaceBar({
           }}
         />
       </div>
+      <window.ThemeToggle className="story-theme-toggle" />
       <div className="i18n-slot story-i18n-slot" data-i18n-slot="desktop" />
       {error && <div className="story-switch-error">{error}</div>}
     </div>

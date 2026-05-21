@@ -4,27 +4,26 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="viewport-router.js" data-current="mobile"></script>
+<script src="theme.js?v=1"></script>
 <title>The Atelier of Aevenmere — Mobile</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+SC:wght@400;500;600&family=EB+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 
 <!-- Reuse desktop tokens/components -->
-<link rel="stylesheet" href="styles.css?v=8" />
-<link rel="stylesheet" href="styles2.css?v=8" />
-<link rel="stylesheet" href="codex.css?v=8" />
+<link rel="stylesheet" href="styles.css?v=9" />
+<link rel="stylesheet" href="styles2.css?v=9" />
+<link rel="stylesheet" href="codex.css?v=9" />
 
 <!-- Mobile-specific styles -->
-<link rel="stylesheet" href="mobile.css?v=1" />
+<link rel="stylesheet" href="mobile.css?v=2" />
 
 <style>
   html, body {
     margin: 0; padding: 0;
-    background:
-      radial-gradient(1400px 800px at 30% -10%, #2a2218 0%, #14110d 60%),
-      #14110d;
+    background: var(--app-bg);
     min-height: 100vh;
-    color: #e8dcc4;
+    color: var(--paper);
     font-family: "EB Garamond", Georgia, serif;
   }
   body { overflow-x: hidden; }
@@ -45,20 +44,20 @@
   .showcase-h .eyebrow {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 10px; letter-spacing: 0.32em; text-transform: uppercase;
-    color: #7a6b54;
+    color: var(--meta);
   }
   .showcase-h h1 {
     font-family: "Cormorant SC", serif; font-weight: 500;
     font-size: 36px; letter-spacing: 0.18em; text-transform: uppercase;
-    color: #e8dcc4; margin: 8px 0 4px;
+    color: var(--paper); margin: 8px 0 4px;
   }
   .showcase-h h1 em {
     font-family: "EB Garamond", serif; font-style: italic; letter-spacing: 0.04em;
-    color: #d6b07a; text-transform: none; font-weight: 400;
+    color: var(--gold-2); text-transform: none; font-weight: 400;
   }
   .showcase-h p {
     font-family: "EB Garamond", serif; font-style: italic;
-    color: #b8a888; font-size: 15px; line-height: 1.55;
+    color: var(--body-muted); font-size: 15px; line-height: 1.55;
     margin: 4px 0 0;
   }
 
@@ -73,15 +72,15 @@
   .device-caption {
     font-family: "JetBrains Mono", ui-monospace, monospace;
     font-size: 9.5px; letter-spacing: 0.28em; text-transform: uppercase;
-    color: #7a6b54;
+    color: var(--meta);
   }
-  .device-caption b { color: #d6b07a; font-weight: 500; }
+  .device-caption b { color: var(--gold-2); font-weight: 500; }
 
   /* Standalone (no frame) mode */
   .standalone-host {
     width: 402px; height: 874px;
-    border: 1px solid #2a2218;
-    box-shadow: 0 40px 80px rgba(0,0,0,0.5);
+    border: 1px solid var(--border);
+    box-shadow: 0 40px 80px var(--shadow-strong);
     overflow: hidden;
   }
 
@@ -166,6 +165,7 @@
 
   function Showcase() {
     const [t, setTweak] = window.useTweaks(TWEAK_DEFAULTS);
+    const [theme] = window.AevenTheme.useTheme();
     const [isNarrowViewport, setIsNarrowViewport] = React.useState(() => window.innerWidth <= 820);
 
     React.useEffect(() => {
@@ -186,7 +186,7 @@
     }, [showFrame]);
 
     const phone = (
-      <window.IOSDevice width={402} height={874} dark={true}>
+      <window.IOSDevice width={402} height={874} dark={theme === "dark"}>
         <window.MobileApp />
       </window.IOSDevice>
     );
