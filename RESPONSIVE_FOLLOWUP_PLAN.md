@@ -14,6 +14,7 @@
 - 2026-05-21 22:22 Asia/Taipei：P6 第三段已完成。新增 confirmed apply 與 restore-version API：`POST /api/stories/:id/articles/:articleId/drafts/:draftId/apply` 需要 `confirmApply: true` 才會把 draft 套用到正式文章，套用前會在 `_drafts/articles/.../versions/` 保留可回復版本；`GET /api/stories/:id/articles/:articleId/versions` 可列出版本，`POST /api/stories/:id/articles/:articleId/versions/:versionId/restore` 需要 `confirmRestore: true` 才會回復，且回復前也會保留 rollback version。完整 `npm run test` 通過 15 項測試。下一步接續 P6 的文章品質驗證。
 - 2026-05-21 22:28 Asia/Taipei：P6 第四段已完成。新增文章品質驗證 API：`GET /api/stories/:id/articles/:articleId/quality` 驗證正式文章，`GET /api/stories/:id/articles/:articleId/drafts/:draftId/quality` 驗證 draft；檢查包含 Markdown/frontmatter parse、world sync 缺漏引用、年份/角色生死/組織國家成立與解散等一致性。測試覆蓋良好文章、缺漏世界資料、角色死亡後出現、壞掉的 draft frontmatter；完整 `npm run test` 通過 15 項測試。P6 已完成，下一步依部署需求接續 P4 或 P5。
 - 2026-05-21 22:52 Asia/Taipei：P4 已完成第一版。新增 `SCRIPT_LOAD_ORDER.md`，明確列出 landing/desktop/mobile entry、React/ReactDOM/Babel CDN、data/core/store/ai、`workspace-state.jsx`、桌機/手機 UI globals 與 boot script 的載入順序；現階段暫不導入 build step，仍以文件加 `ui-surface.test.mjs` 的 script order guard 管理風險。`npm run test:ui` 與完整 `npm run test` 均通過 15 項測試。下一步依建議順序接續 P5。
+- 2026-05-21 23:12 Asia/Taipei：P5 已完成第一版。新增 `i18n-surface.test.mjs` 與 `npm run test:i18n`，檢查主入口 HTML/JS/JSX 不含常見 mojibake 標記，並確認 landing 與 mobile showcase 的主要顯示文字都有 `i18n.js` 翻譯來源；完整 `npm run test` 通過 17 項測試。P1-P6 皆已完成。
 
 ## P1：補上瀏覽器行為測試（已完成）
 
@@ -72,6 +73,7 @@
 - 驗收標準：
   - 桌機與手機主要入口文字不再出現亂碼。
   - 新增或修改 UI 字串時有明確 i18n 放置位置。
+- 狀態：已完成第一版。`i18n-surface.test.mjs` 會檢查主入口 mojibake 標記與 landing/mobile 主要文字的 `i18n.js` 覆蓋；`package.json` 已加入 `npm run test:i18n`，完整 `npm run test` 也會執行此檢查。
 
 ## P6：讓較輕量 AI 也能可靠讀寫文章
 
