@@ -12,7 +12,7 @@
     "ch_cart",
     "ch_miorra"
   ],
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 She carries a map of the Reach as it was before the Sundering.

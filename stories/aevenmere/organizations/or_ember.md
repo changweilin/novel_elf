@@ -35,7 +35,8 @@
     }
   ],
   "dissolvedBody": "Hunted to extinction by the Lantern Concord and the Order, 1178–1180.",
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "# The Ember Hand",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 # The Ember Hand

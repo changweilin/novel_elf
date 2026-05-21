@@ -7,7 +7,8 @@
   "name": "Vethgar",
   "x": 170,
   "y": 110,
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "# Vethgar",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 # Vethgar

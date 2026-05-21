@@ -10,7 +10,8 @@
   "compressed": 0.85,
   "accent": "#6b8a7a",
   "blurb": "Plague, then plenty. The libraries swell.",
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "Plague, then plenty. The libraries swell.",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 Plague, then plenty. The libraries swell.

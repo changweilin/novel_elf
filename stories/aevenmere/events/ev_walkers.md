@@ -9,7 +9,7 @@
   "body": "They leave behind only their footprints, which are still walked.",
   "placeId": "pl_vethgar",
   "participants": [],
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 They leave behind only their footprints, which are still walked.

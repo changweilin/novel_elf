@@ -7,7 +7,8 @@
   "name": "Olbrand",
   "x": 510,
   "y": 240,
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "# Olbrand",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 # Olbrand

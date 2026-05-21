@@ -12,7 +12,7 @@
   "status": "revising",
   "year": 1200,
   "blurb": "Catalogues, never edits. A doctrine examined.",
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 Catalogues, never edits. A doctrine examined.

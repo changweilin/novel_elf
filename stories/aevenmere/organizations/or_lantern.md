@@ -34,7 +34,8 @@
       "territory": "440,200 600,200 620,330 440,330"
     }
   ],
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "# The Lantern Concord",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 # The Lantern Concord

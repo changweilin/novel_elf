@@ -7,7 +7,8 @@
   "name": "Hollow Spire",
   "x": 380,
   "y": 400,
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "# Hollow Spire",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 # Hollow Spire

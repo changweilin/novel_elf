@@ -10,7 +10,8 @@
   "compressed": 1.4,
   "accent": "#a8362f",
   "blurb": "Eighty years that broke a thousand.",
-  "savedAt": "2026-05-20T15:24:10.317Z"
+  "body": "Eighty years that broke a thousand.",
+  "savedAt": "2026-05-21T15:05:18.936Z"
 }
 ---
 Eighty years that broke a thousand.
