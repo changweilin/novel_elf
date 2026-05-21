@@ -25,6 +25,8 @@ test("story API seeds, creates, saves, renames, and archives Markdown stories", 
     await waitForServer(server);
     const base = `http://127.0.0.1:${port}`;
 
+    await assert.rejects(request(`${base}/.gitattributes`), /404/);
+
     const listed = await request(`${base}/api/stories`);
     assert.ok(listed.stories.length >= 1);
     assert.equal(listed.stories[0].id, "aevenmere");

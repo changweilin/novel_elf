@@ -11,7 +11,7 @@
   "participants": [
     "co_vael"
   ],
-  "savedAt": "2026-05-21T15:05:18.936Z"
+  "savedAt": "2026-05-21T15:19:18.932Z"
 }
 ---
 First named monarch of Vaelora. The crown does not fit her.

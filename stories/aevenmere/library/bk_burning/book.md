@@ -12,7 +12,7 @@
   "status": "draft",
   "year": 1180,
   "blurb": "Eighty years that broke a thousand. A chronicle, in three folios, of the Ember Hand and what they unmade.",
-  "savedAt": "2026-05-21T15:05:18.936Z"
+  "savedAt": "2026-05-21T15:19:18.932Z"
 }
 ---
 Eighty years that broke a thousand. A chronicle, in three folios, of the Ember Hand and what they unmade.

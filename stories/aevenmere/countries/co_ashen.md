@@ -34,7 +34,7 @@
   ],
   "dissolvedBody": "Burned to slag and rumor in 1120. The Wastes belong to no crown now.",
   "body": "# The Ashen Holdfast",
-  "savedAt": "2026-05-21T15:05:18.936Z"
+  "savedAt": "2026-05-21T15:19:18.932Z"
 }
 ---
 # The Ashen Holdfast

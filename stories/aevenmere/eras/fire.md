@@ -11,7 +11,7 @@
   "accent": "#a8362f",
   "blurb": "Eighty years that broke a thousand.",
   "body": "Eighty years that broke a thousand.",
-  "savedAt": "2026-05-21T15:05:18.936Z"
+  "savedAt": "2026-05-21T15:19:18.932Z"
 }
 ---
 Eighty years that broke a thousand.

@@ -1,0 +1,15 @@
+# Local private story workspaces
+.local/
+private-stories/
+stories-private/
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Runtime and dependency output
+.dev-server/
+node_modules/
+coverage/
+dist/

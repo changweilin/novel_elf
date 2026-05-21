@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { stat } from "node:fs/promises";
 import { createReadStream } from "node:fs";
-import { extname, join, normalize, relative, resolve, sep } from "node:path";
+import { extname, isAbsolute, join, normalize, relative, resolve, sep } from "node:path";
 import { networkInterfaces } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
@@ -31,7 +31,10 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 const args = parseArgs(process.argv.slice(2));
 const host = args.host || process.env.HOST || "0.0.0.0";
 const port = Number(args.port || process.env.PORT || 8789);
-const storiesRoot = resolve(args.storiesRoot || process.env.STORIES_ROOT || join(root, "stories"));
+const demoStoriesRoot = resolve(join(root, "stories"));
+const privateStoriesRoot = resolve(join(root, ".local", "stories"));
+const storiesRoot = resolveStoriesRoot(args.storiesRoot || process.env.STORIES_ROOT || privateStoriesRoot);
+const blockedStaticSegments = new Set(["private-stories", "stories-private"]);
 
 const mimeTypes = new Map([
   [".html", "text/html; charset=utf-8"],
@@ -99,8 +102,12 @@ server.on("error", (error) => {
 
 server.listen(port, host, () => {
   const urls = getNetworkUrls(port);
+  const storyMode = samePath(storiesRoot, demoStoriesRoot) ? "demo sample" : "private/local";
   console.log(`novel-elf dev server running from ${root}`);
-  console.log(`Stories:   ${storiesRoot}`);
+  console.log(`Stories:   ${storiesRoot} (${storyMode})`);
+  if (!samePath(storiesRoot, demoStoriesRoot)) {
+    console.log(`Demo data: ${demoStoriesRoot}`);
+  }
   console.log(`Local:     http://localhost:${port}/`);
 
   for (const url of urls.tailscale) {
@@ -118,6 +125,12 @@ async function resolveRequestPath(requestUrl) {
 
   if (pathname.endsWith("/")) {
     pathname += "index.html";
+  }
+
+  if (isBlockedStaticPath(pathname)) {
+    const error = new Error("Not found");
+    error.code = "ENOENT";
+    throw error;
   }
 
   const requestedPath = normalize(join(root, pathname));
@@ -356,6 +369,25 @@ function assertStoryId(id) {
   if (!isSafeStoryId(id)) {
     throw new Error(`Unsafe story id: ${id}`);
   }
+}
+
+function resolveStoriesRoot(value) {
+  const input = String(value || "").trim();
+  if (!input) return privateStoriesRoot;
+  return resolve(isAbsolute(input) ? input : join(root, input));
+}
+
+function samePath(left, right) {
+  const a = resolve(left);
+  const b = resolve(right);
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function isBlockedStaticPath(pathname) {
+  return pathname
+    .split("/")
+    .filter(Boolean)
+    .some((segment) => segment.startsWith(".") || blockedStaticSegments.has(segment));
 }
 
 function storySummary(id, world) {
