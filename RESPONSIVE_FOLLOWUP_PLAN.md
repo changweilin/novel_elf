@@ -13,6 +13,7 @@
 - 2026-05-21 21:21 Asia/Taipei：P6 第二段已完成。`POST /api/stories/:id/articles/:articleId/drafts` 現在支援 `bodyPatch`（append/prepend/replace_text/replace_section/replace_body）與 frontmatter patch draft；新增 `GET /api/article-tasks` 提供 7 種 AI 任務 schema，並新增 `GET /api/stories/:id/articles/:articleId/context?task=...&maxChars=...` 產生受字數限制的 context pack。完整 `npm run test` 通過 15 項測試。下一步接續 P6 的正式套用確認/回復版本與文章品質驗證。
 - 2026-05-21 22:22 Asia/Taipei：P6 第三段已完成。新增 confirmed apply 與 restore-version API：`POST /api/stories/:id/articles/:articleId/drafts/:draftId/apply` 需要 `confirmApply: true` 才會把 draft 套用到正式文章，套用前會在 `_drafts/articles/.../versions/` 保留可回復版本；`GET /api/stories/:id/articles/:articleId/versions` 可列出版本，`POST /api/stories/:id/articles/:articleId/versions/:versionId/restore` 需要 `confirmRestore: true` 才會回復，且回復前也會保留 rollback version。完整 `npm run test` 通過 15 項測試。下一步接續 P6 的文章品質驗證。
 - 2026-05-21 22:28 Asia/Taipei：P6 第四段已完成。新增文章品質驗證 API：`GET /api/stories/:id/articles/:articleId/quality` 驗證正式文章，`GET /api/stories/:id/articles/:articleId/drafts/:draftId/quality` 驗證 draft；檢查包含 Markdown/frontmatter parse、world sync 缺漏引用、年份/角色生死/組織國家成立與解散等一致性。測試覆蓋良好文章、缺漏世界資料、角色死亡後出現、壞掉的 draft frontmatter；完整 `npm run test` 通過 15 項測試。P6 已完成，下一步依部署需求接續 P4 或 P5。
+- 2026-05-21 22:52 Asia/Taipei：P4 已完成第一版。新增 `SCRIPT_LOAD_ORDER.md`，明確列出 landing/desktop/mobile entry、React/ReactDOM/Babel CDN、data/core/store/ai、`workspace-state.jsx`、桌機/手機 UI globals 與 boot script 的載入順序；現階段暫不導入 build step，仍以文件加 `ui-surface.test.mjs` 的 script order guard 管理風險。`npm run test:ui` 與完整 `npm run test` 均通過 15 項測試。下一步依建議順序接續 P5。
 
 ## P1：補上瀏覽器行為測試（已完成）
 
@@ -62,6 +63,7 @@
 - 驗收標準：
   - 新增 shared module 時不需要靠猜測 script 順序。
   - production console 不再依賴 Babel standalone warning 作為正常狀態。
+- 狀態：已完成第一版。暫不導入 build step；載入順序文件為 `SCRIPT_LOAD_ORDER.md`，並由 `ui-surface.test.mjs` 既有 boot-order 檢查保護桌機與手機入口。
 
 ## P5：清理文字編碼與翻譯來源
 
