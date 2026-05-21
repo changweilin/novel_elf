@@ -240,6 +240,14 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
       id, title: "An untitled chapter", year: currentYear,
       placeId: null, focusIds: [], eventIds: [],
       status: "outline", words: 0,
+      povId: null,
+      sceneGoal: "",
+      conflict: "",
+      turn: "",
+      emotionalDelta: "",
+      continuityNotes: "",
+      summary: "",
+      styleKey: "",
       md: `# An untitled chapter\n\n*[a fresh leaf — begin]*`,
       illustrations: []
     };

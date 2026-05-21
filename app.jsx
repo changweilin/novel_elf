@@ -9,226 +9,66 @@ function uid(p) { return p + "_" + Math.random().toString(36).slice(2, 8); }
 const LS_ORIENT = "aevenmere.orient.v1";
 
 const App = () => {
-  const seedWorld = useMemo(() => window.StoryStore.normalizeWorld(window.WORLD_SEED), []);
-  const [world, setWorld] = useState(seedWorld);
-  const [stories, setStories] = useState([]);
-  const [activeStory, setActiveStory] = useState(null);
-  const [storyReady, setStoryReady] = useState(false);
-  const [storeMode, setStoreMode] = useState("loading");
-  const [storyStatus, setStoryStatus] = useState("loading");
-  const [storyError, setStoryError] = useState(null);
-  const [currentYear, setCurrentYear] = useState(seedWorld.defaultYear);
   const [windowSize, setWindowSize] = useState(120);
   const [orient, setOrient] = useState(() => {
     try { return localStorage.getItem(LS_ORIENT) || "vertical"; } catch { return "vertical"; }
   });
   useEffect(() => { try { localStorage.setItem(LS_ORIENT, orient); } catch {} }, [orient]);
-  const [folio, setFolio] = useState("atelier");
   const [tab, setTab] = useState("events");
-  const [focusId, setFocusId] = useState(() => window.StoryStore.firstFocus(seedWorld));
-  const [selectedRegionId, setSelectedRegionId] = useState(seedWorld.regions[0]?.id || null);
+  const [selectedRegionId, setSelectedRegionId] = useState(null);
   const [layers, setLayers] = useState({ events: true, countries: true, orgs: true, characters: true, conflicts: true, eventsWindow: 200 });
-  const [sourceRange, setSourceRange] = useState({ enabled: false, startKey: "", endKey: "" });
   const [drawing, setDrawing] = useState(null); // { entityId, key:'countries'|'organizations', accent }
-  const [story, setStory] = useState("");
-  const [hint, setHint] = useState("");
-  const [busy, setBusy] = useState(null);
-  const [err, setErr] = useState(null);
 
-  const sourceIndex = useMemo(() => AVN.buildSourceIndex(world), [world.library]);
-  const sourceScope = useMemo(() => AVN.resolveSourceScope(sourceIndex, sourceRange), [sourceIndex, sourceRange]);
-  const scopedWorld = useMemo(() => AVN.filterWorldBySourceScope(world, sourceScope, sourceIndex), [world, sourceScope, sourceIndex]);
+  const workspace = window.useAevenmereWorkspace({
+    afterEntityCreated: (kind) => {
+      if (kind === "event") setTab("events");
+      else if (kind === "character") setTab("characters");
+      else if (kind === "organization") setTab("orgs");
+      else if (kind === "country") setTab("countries");
+    },
+    getEventPlaceId: ({ world }) => {
+      const reg = world.regions.find((region) => region.id === selectedRegionId);
+      if (!reg) return null;
+      const place = world.places.find((item) => item.name === reg.cap.name);
+      return place?.id || null;
+    }
+  });
 
-  useEffect(() => {
-    let alive = true;
-    setStoryStatus("loading");
-    window.StoryStore.loadInitial(seedWorld)
-      .then((loaded) => {
-        if (!alive) return;
-        setStories(loaded.stories || []);
-        setActiveStory(loaded.activeStory);
-        setWorld(loaded.world);
-        setCurrentYear(window.StoryStore.getYear(loaded.activeStory.id, loaded.world));
-        setFolio(window.StoryStore.getUi(loaded.activeStory.id, "folio", "atelier"));
-        setFocusId(window.StoryStore.firstFocus(loaded.world));
-        setSelectedRegionId(loaded.world.regions[0]?.id || null);
-        setStoreMode(loaded.mode);
-        setStoryError(loaded.error ? String(loaded.error.message || loaded.error) : null);
-        setStoryReady(true);
-        setStoryStatus(loaded.mode === "api" ? "ready" : "static");
-      })
-      .catch((error) => {
-        if (!alive) return;
-        setStoryError(String(error.message || error));
-        setStoryReady(true);
-        setStoreMode("static");
-        setStoryStatus("error");
-      });
-    return () => { alive = false; };
-  }, [seedWorld]);
-
-  useEffect(() => {
-    if (!storyReady || !activeStory) return;
-    const timer = window.setTimeout(() => {
-      setStoryStatus(storeMode === "api" ? "saving" : "static");
-      window.StoryStore.saveWorld(activeStory.id, world, storeMode)
-        .then((saved) => {
-          if (saved.stories) setStories(saved.stories);
-          if (saved.story) setActiveStory(saved.story);
-          setStoryError(null);
-          setStoryStatus(storeMode === "api" ? "saved" : "static");
-        })
-        .catch((error) => {
-          setStoryError(String(error.message || error));
-          setStoryStatus("error");
-        });
-    }, 650);
-    return () => window.clearTimeout(timer);
-  }, [world, activeStory?.id, storyReady, storeMode]);
+  const { state, storyActions, entityActions, aiActions, sourceState } = workspace;
+  const {
+    world, setWorld,
+    stories, activeStory, storyReady, storeMode, storyStatus, storyError,
+    currentYear, setCurrentYear,
+    folio, setFolio,
+    focusId, setFocusId,
+    currentEra, canUseStoryApi
+  } = state;
+  const {
+    sourceRange, setSourceRange,
+    sourceIndex, sourceScope, scopedWorld, counts, totalCounts
+  } = sourceState;
+  const {
+    onSelectStory, onCreateStory, onDuplicateStory, onRenameStory, onArchiveStory,
+    onImportStoryFile, onExportStoryTemplate
+  } = storyActions;
+  const {
+    setEnt,
+    updateEvent, deleteEvent, updateChar, deleteChar, updateOrg, deleteOrg, updateCountry, deleteCountry,
+    snapMutator, addRel, updateRel, deleteRel, withCurrentSourceRef,
+    addBlankEvent, addBlankChar: addBlankCharBase, addBlankOrg, addBlankCountry,
+    onReset
+  } = entityActions;
+  const {
+    story, setStory,
+    hint, setHint,
+    busy, err,
+    onAI, onAIFill
+  } = aiActions;
 
   useEffect(() => {
-    if (!storyReady || !activeStory) return;
-    window.StoryStore.setUi(activeStory.id, "year", currentYear);
-  }, [currentYear, activeStory?.id, storyReady]);
-
-  useEffect(() => {
-    if (!storyReady || !activeStory) return;
-    window.StoryStore.setUi(activeStory.id, "folio", folio);
-  }, [folio, activeStory?.id, storyReady]);
-
-  const applyLoadedStory = (loaded) => {
-    const nextWorld = window.StoryStore.normalizeWorld(loaded.world);
-    const nextStory = loaded.story || window.StoryStore.storyFromWorld(nextWorld);
-    setActiveStory(nextStory);
-    setWorld(nextWorld);
-    setCurrentYear(window.StoryStore.getYear(nextStory.id, nextWorld));
-    setFolio(window.StoryStore.getUi(nextStory.id, "folio", "atelier"));
-    setFocusId(window.StoryStore.firstFocus(nextWorld));
-    setSelectedRegionId(nextWorld.regions[0]?.id || null);
+    setSelectedRegionId(world.regions[0]?.id || null);
     setDrawing(null);
-    setSourceRange({ enabled: false, startKey: "", endKey: "" });
-    setStory("");
-    setHint("");
-    setErr(null);
-    window.StoryStore.saveActiveStoryId(nextStory.id);
-  };
-
-  const onSelectStory = async (storyId) => {
-    if (!storyId || storyId === activeStory?.id || !storyReady) return;
-    setStoryStatus("loading");
-    try {
-      const loaded = await window.StoryStore.loadStory(storyId, storeMode);
-      applyLoadedStory(loaded);
-      setStoryError(null);
-      setStoryStatus("ready");
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
-
-  const onCreateStory = async () => {
-    if (!storyReady) return;
-    const title = prompt("Name this new story", "Untitled Story");
-    if (!title) return;
-    setStoryStatus("loading");
-    try {
-      const created = await window.StoryStore.createStory({ title }, storeMode);
-      setStories(created.stories || []);
-      applyLoadedStory(created);
-      setStoryError(null);
-      setStoryStatus("ready");
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
-
-  const onDuplicateStory = async () => {
-    if (!storyReady || !activeStory) return;
-    const title = prompt("Name the duplicate story", `${world.name} Copy`);
-    if (!title) return;
-    setStoryStatus("loading");
-    try {
-      const created = await window.StoryStore.createStory({ title, sourceId: activeStory.id }, storeMode);
-      setStories(created.stories || []);
-      applyLoadedStory(created);
-      setStoryError(null);
-      setStoryStatus("ready");
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
-
-  const onRenameStory = async () => {
-    if (!storyReady || !activeStory) return;
-    const name = prompt("Rename this story", world.name);
-    if (!name || name === world.name) return;
-    setStoryStatus("saving");
-    try {
-      const renamed = await window.StoryStore.renameStory(activeStory.id, { name }, storeMode);
-      setStories(renamed.stories || stories);
-      applyLoadedStory(renamed);
-      setStoryError(null);
-      setStoryStatus("saved");
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
-
-  const onArchiveStory = async () => {
-    if (!storyReady || !activeStory) return;
-    if (!confirm(`Archive "${world.name}"? Its Markdown files will move into stories/_archived.`)) return;
-    setStoryStatus("loading");
-    try {
-      const archived = await window.StoryStore.archiveStory(activeStory.id, storeMode);
-      const remaining = archived.stories || [];
-      setStories(remaining);
-      if (remaining.length) {
-        const loaded = await window.StoryStore.loadStory(remaining[0].id, storeMode);
-        applyLoadedStory(loaded);
-      } else {
-        const created = await window.StoryStore.createStory({ title: "Untitled Story" }, storeMode);
-        setStories(created.stories || []);
-        applyLoadedStory(created);
-      }
-      setStoryError(null);
-      setStoryStatus("ready");
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
-
-  const onExportStoryTemplate = () => {
-    try {
-      window.StoryStore.downloadStoryImportTemplate();
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
-
-  const onImportStoryFile = async (file) => {
-    if (!storyReady || !file) return;
-    const defaultTitle = window.StoryStore.storyTitleFromFileName(file.name);
-    const title = prompt("匯入為故事名稱", defaultTitle);
-    if (!title) return;
-    setStoryStatus("loading");
-    try {
-      const markdown = await file.text();
-      const created = await window.StoryStore.createStoryFromMarkdown({ markdown, fileName: file.name, title }, storeMode);
-      setStories(created.stories || []);
-      applyLoadedStory(created);
-      setStoryError(null);
-      setStoryStatus(storeMode === "api" ? "saved" : "static");
-    } catch (error) {
-      setStoryError(String(error.message || error));
-      setStoryStatus("error");
-    }
-  };
+  }, [activeStory?.id]);
 
   // Focus auto-switches tab to match entity kind
   useEffect(() => {
@@ -240,12 +80,9 @@ const App = () => {
     else if (k === "country") setTab("countries");
   }, [focusId]);
 
-  useEffect(() => {
-    if (!sourceScope.enabled || !focusId) return;
-    if (!AVN.findEntity(scopedWorld, focusId)) setFocusId(null);
-  }, [sourceScope.enabled, sourceScope.startKey, sourceScope.endKey, scopedWorld, focusId]);
+  const addBlankChar = () => addBlankCharBase(selectedRegionId);
 
-  // ── Drawing territories ─────────────────────────────
+  // Drawing territories
   const startDrawing = (entityId, key) => {
     const ent = (world[key] || []).find((e) => e.id === entityId);
     if (!ent) return;
@@ -271,186 +108,7 @@ const App = () => {
     setDrawing(null);
   };
 
-  // ── Mutations ───────────────────────────────────────
-  const setEnt = (key, id, patch) => setWorld((w) => ({ ...w, [key]: (w[key] || []).map((e) => e.id === id ? { ...e, ...patch } : e) }));
-  const delEnt = (key, id) => setWorld((w) => ({ ...w, [key]: (w[key] || []).filter((e) => e.id !== id) }));
-
-  const updateEvent = (id, patch) => setEnt("events", id, patch);
-  const deleteEvent = (id) => { delEnt("events", id); if (focusId === id) setFocusId(null); };
-  const updateChar = (id, patch) => setEnt("characters", id, patch);
-  const deleteChar = (id) => { delEnt("characters", id); if (focusId === id) setFocusId(null); };
-  const updateOrg = (id, patch) => setEnt("organizations", id, patch);
-  const deleteOrg = (id) => { delEnt("organizations", id); if (focusId === id) setFocusId(null); };
-  const updateCountry = (id, patch) => setEnt("countries", id, patch);
-  const deleteCountry = (id) => { delEnt("countries", id); if (focusId === id) setFocusId(null); };
-
-  // Snapshots — entity, snap object reference
-  const snapMutator = (key) => ({
-    add: (id, snap) => {
-      const ent = (world[key] || []).find((e) => e.id === id);
-      if (ent) setEnt(key, id, { snapshots: [...(ent.snapshots || []), snap] });
-    },
-    update: (id) => (oldSnap, patch) => {
-      const ent = (world[key] || []).find((e) => e.id === id);
-      if (ent) setEnt(key, id, { snapshots: (ent.snapshots || []).map((s) => s === oldSnap ? { ...s, ...patch } : s) });
-    },
-    del: (id) => (snap) => {
-      const ent = (world[key] || []).find((e) => e.id === id);
-      if (ent) setEnt(key, id, { snapshots: (ent.snapshots || []).filter((s) => s !== snap) });
-    }
-  });
-
-  // Relationships
-  const addRel = (entityId) => {
-    const candidates = [...world.characters, ...world.organizations, ...world.countries].filter((e) => e.id !== entityId);
-    const other = candidates[0];
-    if (!other) return;
-    const id = uid("rl");
-    const sourceRefs = sourceRefsForNewRecord();
-    setWorld((w) => ({ ...w, relationships: [...(w.relationships || []), { id, a: entityId, b: other.id, kind: "ally", since: currentYear, until: null, note: "", ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-  };
-  const updateRel = (id, patch) => setWorld((w) => ({ ...w, relationships: (w.relationships || []).map((r) => r.id === id ? { ...r, ...patch } : r) }));
-  const deleteRel = (id) => setWorld((w) => ({ ...w, relationships: (w.relationships || []).filter((r) => r.id !== id) }));
-
-  const sourceRefsForNewRecord = () => {
-    const ref = sourceScope.enabled ? AVN.minimalSourceRef(sourceScope.end) : null;
-    return ref ? [ref] : [];
-  };
-  const withCurrentSourceRef = (record) => {
-    const sourceRefs = sourceRefsForNewRecord();
-    return sourceRefs.length ? { ...record, sourceRefs } : record;
-  };
-
-  // ── Add blanks ──────────────────────────────────────
-  const addBlankEvent = () => {
-    const id = uid("ev");
-    const sourceRefs = sourceRefsForNewRecord();
-    setWorld((w) => ({ ...w, events: [...w.events, { id, year: currentYear, title: "An unnamed happening", body: "", placeId: null, participants: [], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-    setFocusId(id); setTab("events");
-  };
-  const addBlankChar = () => {
-    const id = uid("ch");
-    const sourceRefs = sourceRefsForNewRecord();
-    setWorld((w) => ({ ...w, characters: [...w.characters, { id, name: "Someone unnamed", role: "of the Reach", born: currentYear - 25, died: null, originRegionId: selectedRegionId, snapshots: [{ year: currentYear, location: { x: 500, y: 340, name: "" }, status: "alive", body: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-    setFocusId(id); setTab("characters");
-  };
-  const addBlankOrg = () => {
-    const id = uid("or");
-    const sourceRefs = sourceRefsForNewRecord();
-    setWorld((w) => ({ ...w, organizations: [...w.organizations, { id, name: "An unnamed order", accent: "#c89859", founded: currentYear, dissolved: null, snapshots: [{ year: currentYear, hq: { x: 500, y: 340, name: "" }, leader: "", members: 1, body: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-    setFocusId(id); setTab("orgs");
-  };
-  const addBlankCountry = () => {
-    const id = uid("co");
-    const sourceRefs = sourceRefsForNewRecord();
-    setWorld((w) => ({ ...w, countries: [...w.countries, { id, name: "An unnamed realm", accent: "#5a7a3a", founded: currentYear, dissolved: null, snapshots: [{ year: currentYear, capital: { x: 500, y: 340, name: "" }, leader: "", body: "", territory: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-    setFocusId(id); setTab("countries");
-  };
-
-  // ── AI handlers ─────────────────────────────────────
-  const placeIdForCurrent = () => {
-    const reg = world.regions.find((r) => r.id === selectedRegionId);
-    if (!reg) return null;
-    const p = world.places.find((pp) => pp.name === reg.cap.name);
-    return p?.id || null;
-  };
-  const expandPlace = (name) => {
-    const p = world.places.find((pp) => pp.name?.toLowerCase() === (name || "").toLowerCase());
-    if (p) return { x: p.x, y: p.y, name: p.name };
-    return { x: 500, y: 340, name: name || "" };
-  };
-
-  const onAI = async (kind) => {
-    setBusy(kind); setErr(null);
-    try {
-      if (kind === "char") {
-        const out = await window.aiGenerateCharacter(world, hint, currentYear);
-        const id = uid("ch");
-        const snaps = (out.snapshots || []).map((s) => ({ year: s.year, status: s.status, body: s.body, location: expandPlace(s.place) }));
-        const sourceRefs = sourceRefsForNewRecord();
-        setWorld((w) => ({ ...w, characters: [{ id, name: out.name, role: out.role, born: out.born ?? currentYear - 25, died: null, snapshots: snaps, body: out.body, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.characters] }));
-        setFocusId(id); setTab("characters");
-      } else if (kind === "event") {
-        const out = await window.aiGenerateEvent(world, hint, currentYear, placeIdForCurrent());
-        const id = uid("ev");
-        const sourceRefs = sourceRefsForNewRecord();
-        setWorld((w) => ({ ...w, events: [...w.events, { id, year: out.year || currentYear, title: out.title, body: out.body, placeId: out.placeId || placeIdForCurrent(), participants: out.participants || [], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-        setFocusId(id); setTab("events");
-      } else if (kind === "org") {
-        const out = await window.aiGenerateOrg(world, hint, currentYear);
-        const id = uid("or");
-        const snaps = (out.snapshots || []).map((s) => ({ year: s.year, leader: s.leader, members: s.members, body: s.body, hq: expandPlace(s.hq), territory: "" }));
-        const sourceRefs = sourceRefsForNewRecord();
-        setWorld((w) => ({ ...w, organizations: [{ id, name: out.name, accent: out.accent || "#c89859", founded: out.founded ?? currentYear, dissolved: out.dissolved ?? null, snapshots: snaps, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.organizations] }));
-        setFocusId(id); setTab("orgs");
-      } else if (kind === "country") {
-        const out = await window.aiGenerateCountry(world, hint, currentYear);
-        const id = uid("co");
-        const snaps = (out.snapshots || []).map((s) => ({ year: s.year, leader: s.leader, body: s.body, capital: expandPlace(s.capital), territory: "" }));
-        const sourceRefs = sourceRefsForNewRecord();
-        setWorld((w) => ({ ...w, countries: [{ id, name: out.name, accent: out.accent || "#5a7a3a", founded: out.founded ?? currentYear, dissolved: out.dissolved ?? null, snapshots: snaps, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.countries] }));
-        setFocusId(id); setTab("countries");
-      } else if (kind === "story") {
-        const out = await window.aiContinueStory(world, currentYear, focusId, hint);
-        setStory(out);
-      }
-      if (kind !== "story") setHint("");
-    } catch (e) { setErr(String(e.message || e)); }
-    setBusy(null);
-  };
-
-  const onAIFill = async (kind, id) => {
-    setBusy("fill"); setErr(null);
-    try {
-      const key = kind === "character" ? "characters" : kind === "organization" ? "organizations" : "countries";
-      const ent = world[key].find((e) => e.id === id);
-      const out = await window.aiFillEntity(world, kind, ent, currentYear);
-      // snapshot
-      if (out.snapshot) {
-        const s = out.snapshot;
-        const sourceRefs = sourceRefsForNewRecord();
-        const expanded = {
-          year: s.year || currentYear,
-          leader: s.leader, members: s.members, status: s.status, body: s.body, territory: s.territory || "",
-          ...(sourceRefs.length ? { sourceRefs } : {})
-        };
-        if (kind === "character") expanded.location = expandPlace(s.place || s.location?.name);
-        if (kind === "organization") expanded.hq = expandPlace(s.hq || s.location?.name);
-        if (kind === "country") expanded.capital = expandPlace(s.capital || s.location?.name);
-        setEnt(key, id, { snapshots: [...ent.snapshots, expanded] });
-      }
-      // relationship
-      if (out.relationship && out.relationship.targetId) {
-        const r = out.relationship;
-        const rid = uid("rl");
-        const sourceRefs = sourceRefsForNewRecord();
-        setWorld((w) => ({ ...w, relationships: [...w.relationships, { id: rid, a: id, b: r.targetId, kind: r.kind || "ally", since: r.since || currentYear, until: null, note: r.note || "", ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
-      }
-    } catch (e) { setErr(String(e.message || e)); }
-    setBusy(null);
-  };
-
-  const onReset = () => {
-    if (!confirm(window.AEVEN_I18N?.t("Re-cast the world to its original seed? Edits will be lost.") || "Re-cast the world to its original seed? Edits will be lost.")) return;
-    const fresh = window.StoryStore.normalizeWorld({ ...window.WORLD_SEED, storyId: activeStory?.id || "aevenmere" });
-    setWorld(fresh);
-    setCurrentYear(fresh.defaultYear);
-    setFocusId(window.StoryStore.firstFocus(fresh));
-  };
-
-  // ── Render helpers ──────────────────────────────────
-  const totalCounts = {
-    events: world.events.length,
-    characters: world.characters.length,
-    orgs: world.organizations.length,
-    countries: world.countries.length
-  };
-  const counts = {
-    events: scopedWorld.events.length,
-    characters: scopedWorld.characters.length,
-    orgs: scopedWorld.organizations.length,
-    countries: scopedWorld.countries.length
-  };
+  // Render helpers
   const onJump = (y) => setCurrentYear(y);
 
   const renderDetail = () => {
@@ -535,10 +193,7 @@ const App = () => {
   };
 
   const focusedKind = focusId ? AVN.entityKind(world, focusId) : null;
-  const currentEra = world.eras.find((e) => currentYear >= e.start && currentYear <= e.end) || world.eras[world.eras.length - 1] || { name: "" };
-
   const isHorizontal = orient === "horizontal";
-  const canUseStoryApi = storeMode === "api";
 
   const storyBar = (
     <StoryWorkspaceBar
@@ -559,7 +214,7 @@ const App = () => {
     />
   );
 
-  // ── Top-level folio switcher (Atelier vs Library) ──
+  // ── Top-level folio switcher ──
   const switcher = (
     <div className="folio-switch">
       <div className="folio-switch-inner">
@@ -569,9 +224,22 @@ const App = () => {
         <button className={`folio-tab ${folio === "library" ? "on" : ""}`} onClick={() => setFolio("library")}>
           <span className="folio-num">III</span> The Library · Books
         </button>
+        <button className={`folio-tab ${folio === "about" ? "on" : ""}`} onClick={() => setFolio("about")}>
+          <span className="folio-num">IV</span> About Me
+        </button>
       </div>
     </div>
   );
+
+  if (folio === "about") {
+    return (
+      <div>
+        {storyBar}
+        {switcher}
+        <window.AevenAboutMe />
+      </div>
+    );
+  }
 
   if (folio === "library") {
     return (

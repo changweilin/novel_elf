@@ -3,11 +3,21 @@
 
 const { useState: useStateChap, useMemo: useMemoChap, useRef: useRefChap, useEffect: useEffectChap } = React;
 
+function chapterArr(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function chapterSlug(value, fallback) {
+  if (window.StoryStore?.slugify) return window.StoryStore.slugify(value, fallback);
+  return String(value || fallback || "item").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || fallback || "item";
+}
+
 function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, onBack, onFocus, onJump }) {
   const [busy, setBusy] = useStateChap(null);
   const [hint, setHint] = useStateChap("");
   const [warnings, setWarnings] = useStateChap(null);   // null = never checked; [] = clean
   const [syncSummary, setSyncSummary] = useStateChap(null);
+  const [pendingSync, setPendingSync] = useStateChap(null);
   const [syncLog, setSyncLog] = useStateChap(() => {
     try { return JSON.parse(localStorage.getItem("aevenmere.lib.synclog." + chapter.id) || "[]"); } catch { return []; }
   });
@@ -24,6 +34,9 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   const era = world.eras.find((e) => chapter.year >= e.start && chapter.year <= e.end);
   const focuses = (chapter.focusIds || []).map((id) => AVN.findEntity(world, id)).filter(Boolean);
   const chapterSourceRef = { bookId: book.id, volumeId: volume.id, chapterId: chapter.id };
+  const writingContext = useMemoChap(() => (
+    window.buildWritingContext ? window.buildWritingContext(world, chapter, book, volume) : { sections: {} }
+  ), [world, chapter, book, volume]);
 
   // ── Word count + autosave (already in world state) ──
   const words = (chapter.md || "").trim().split(/\s+/).filter(Boolean).length;
@@ -35,7 +48,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   const onContinue = async () => {
     setBusy("write"); setErr(null);
     try {
-      const para = await window.aiWriteChapterParagraph(world, chapter, hint);
+      const para = await window.aiWriteChapterParagraph(world, chapter, hint, book, volume);
       updateChapter({ md: (chapter.md || "") + "\n\n" + para });
       setHint("");
     } catch (e) { setErr(String(e.message || e)); }
@@ -45,57 +58,170 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   const onCheck = async () => {
     setBusy("check"); setErr(null);
     try {
-      const out = await window.aiCheckConsistency(world, chapter);
+      const out = await window.aiCheckConsistency(world, chapter, book, volume);
       setWarnings(out.warnings || []);
     } catch (e) { setErr(String(e.message || e)); }
     setBusy(null);
   };
 
+  const normalizeSyncProposal = (out) => ({
+    summary: out?.summary || "",
+    snapshots: chapterArr(out?.snapshots).filter((s) => s?.entityId && s?.body),
+    events: chapterArr(out?.events).filter((ev) => ev?.title || ev?.body),
+    relationships: chapterArr(out?.relationships).filter((r) => r?.a && r?.b)
+  });
+
+  const proposalCount = (proposal) => (
+    chapterArr(proposal?.snapshots).length +
+    chapterArr(proposal?.events).length +
+    chapterArr(proposal?.relationships).length
+  );
+
   const onSync = async () => {
     setBusy("sync"); setErr(null);
     try {
-      const out = await window.aiSyncChapterToWorld(world, chapter);
-      setSyncSummary(out.summary || "(synced)");
-      const stamps = [];
+      const out = await window.aiSyncChapterToWorld(world, chapter, book, volume);
+      const proposal = normalizeSyncProposal(out);
+      setPendingSync(proposal);
+      setSyncSummary(proposal.summary || "(review ready)");
 
-      setWorld((w) => {
-        let W = { ...w };
-        // snapshots
-        for (const s of (out.snapshots || [])) {
-          const kind = AVN.entityKind(W, s.entityId);
-          if (!kind) continue;
-          const key = kind === "character" ? "characters" : kind === "organization" ? "organizations" : "countries";
-          const ent = W[key].find((e) => e.id === s.entityId);
-          if (!ent) continue;
-          const placeObj = world.places.find((p) => p.name?.toLowerCase() === (s.place || "").toLowerCase());
-          const expanded = { year: s.year || chapter.year, body: s.body || "", status: s.status, sourceRefs: [chapterSourceRef] };
-          if (kind === "character") expanded.location = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : (AVN.snapAt(ent, s.year)?.location || ent.snapshots?.[0]?.location);
-          if (kind === "organization") expanded.hq = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : (AVN.snapAt(ent, s.year)?.hq || ent.snapshots?.[0]?.hq);
-          if (kind === "country") expanded.capital = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : (AVN.snapAt(ent, s.year)?.capital || ent.snapshots?.[0]?.capital);
-          W = { ...W, [key]: W[key].map((e) => e.id === ent.id ? { ...e, snapshots: [...(e.snapshots || []), expanded] } : e) };
-          stamps.push(`+ snapshot · ${ent.name} @ ${AVN.yearLabel(expanded.year)}`);
-        }
-        // events
-        for (const ev of (out.events || [])) {
-          const id = "ev_" + Math.random().toString(36).slice(2, 7);
-          W = { ...W, events: [...W.events, { id, year: ev.year || chapter.year, title: ev.title, body: ev.body, placeId: ev.placeId || chapter.placeId, participants: ev.participants || [], sourceRefs: [chapterSourceRef] }] };
-          stamps.push(`+ event · ${ev.title}`);
-        }
-        // relationships
-        for (const r of (out.relationships || [])) {
-          if (!AVN.findEntity(W, r.a) || !AVN.findEntity(W, r.b)) continue;
-          const id = "rl_" + Math.random().toString(36).slice(2, 7);
-          W = { ...W, relationships: [...(W.relationships || []), { id, a: r.a, b: r.b, kind: r.kind || "ally", since: r.since || chapter.year, until: null, note: r.note || "", sourceRefs: [chapterSourceRef] }] };
-          stamps.push(`+ relationship · ${AVN.entityName(W, r.a)} ${r.kind} ${AVN.entityName(W, r.b)}`);
-        }
-        return W;
-      });
-
-      const ts = new Date();
-      const tsStr = ts.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-      setSyncLog((L) => [{ ts: tsStr, msg: stamps.length ? stamps.join(" · ") : "synced — no changes proposed" }, ...L].slice(0, 12));
+      if (!proposalCount(proposal)) {
+        const ts = new Date();
+        const tsStr = ts.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+        setSyncLog((L) => [{ ts: tsStr, msg: "reviewed — no canon changes proposed" }, ...L].slice(0, 12));
+      }
     } catch (e) { setErr(String(e.message || e)); }
     setBusy(null);
+  };
+
+  const uniqueRecordId = (items, prefix, seed) => {
+    const used = new Set(chapterArr(items).map((item) => item.id));
+    const tail = chapterSlug(seed, "sync").replace(new RegExp(`^${prefix}[-_]?`), "") || "sync";
+    const base = `${prefix}_${tail}`.slice(0, 58).replace(/_+$/g, "");
+    let id = base;
+    let i = 2;
+    while (used.has(id)) {
+      id = `${base}_${i}`.slice(0, 64);
+      i += 1;
+    }
+    return id;
+  };
+
+  const placeByName = (W, name) => {
+    if (!name) return null;
+    return chapterArr(W.places).find((p) => p.id === name || p.name?.toLowerCase() === String(name).toLowerCase()) || null;
+  };
+
+  const applySyncProposal = (proposal) => {
+    if (!proposal) return;
+    const stamps = [];
+    let W = { ...world };
+
+    for (const s of chapterArr(proposal.snapshots)) {
+      const kind = AVN.entityKind(W, s.entityId);
+      if (kind !== "character" && kind !== "organization" && kind !== "country") continue;
+      const key = kind === "character" ? "characters" : kind === "organization" ? "organizations" : "countries";
+      const ent = W[key].find((e) => e.id === s.entityId);
+      if (!ent) continue;
+      const year = Number.isFinite(Number(s.year)) ? Number(s.year) : chapter.year;
+      const body = String(s.body || "").trim();
+      if (!body) continue;
+      const duplicate = chapterArr(ent.snapshots).some((snap) => Number(snap.year) === year && String(snap.body || "").trim() === body);
+      if (duplicate) continue;
+
+      const placeObj = placeByName(W, s.place);
+      const prior = AVN.snapAt(ent, year) || ent.snapshots?.[0] || {};
+      const expanded = {
+        year,
+        body,
+        status: s.status || prior.status,
+        sourceRefs: [chapterSourceRef]
+      };
+      if (kind === "character") expanded.location = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : prior.location;
+      if (kind === "organization") expanded.hq = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : prior.hq;
+      if (kind === "country") expanded.capital = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : prior.capital;
+      W = { ...W, [key]: W[key].map((e) => e.id === ent.id ? { ...e, snapshots: [...chapterArr(e.snapshots), expanded] } : e) };
+      stamps.push(`+ snapshot · ${ent.name} @ ${AVN.yearLabel(year)}`);
+    }
+
+    for (const ev of chapterArr(proposal.events)) {
+      const title = String(ev.title || "Untitled event").trim();
+      const year = Number.isFinite(Number(ev.year)) ? Number(ev.year) : chapter.year;
+      const duplicate = chapterArr(W.events).some((item) => item.title === title && Number(item.year) === year);
+      if (duplicate) continue;
+      const id = uniqueRecordId(W.events, "ev", `${year}-${title}`);
+      const participants = chapterArr(ev.participants).filter((id) => AVN.findEntity(W, id));
+      const placeId = W.places.some((p) => p.id === ev.placeId) ? ev.placeId : chapter.placeId;
+      W = {
+        ...W,
+        events: [...chapterArr(W.events), {
+          id,
+          year,
+          title,
+          body: ev.body || "",
+          placeId: placeId || null,
+          participants,
+          sourceRefs: [chapterSourceRef]
+        }]
+      };
+      stamps.push(`+ event · ${title}`);
+    }
+
+    for (const r of chapterArr(proposal.relationships)) {
+      if (!AVN.findEntity(W, r.a) || !AVN.findEntity(W, r.b)) continue;
+      const since = Number.isFinite(Number(r.since)) ? Number(r.since) : chapter.year;
+      const kind = r.kind || "ally";
+      const duplicate = chapterArr(W.relationships).some((item) => (
+        item.a === r.a && item.b === r.b && item.kind === kind && Number(item.since) === since
+      ));
+      if (duplicate) continue;
+      const id = uniqueRecordId(W.relationships, "rl", `${r.a}-${kind}-${r.b}-${since}`);
+      W = {
+        ...W,
+        relationships: [...chapterArr(W.relationships), {
+          id,
+          a: r.a,
+          b: r.b,
+          kind,
+          since,
+          until: null,
+          note: r.note || "",
+          sourceRefs: [chapterSourceRef]
+        }]
+      };
+      stamps.push(`+ relationship · ${AVN.entityName(W, r.a)} ${kind} ${AVN.entityName(W, r.b)}`);
+    }
+
+    setWorld(W);
+    const ts = new Date();
+    const tsStr = ts.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+    setSyncLog((L) => [{ ts: tsStr, msg: stamps.length ? stamps.join(" · ") : "accepted — no new canon after dedupe" }, ...L].slice(0, 12));
+  };
+
+  const acceptSyncItem = (kind, index) => {
+    const proposal = {
+      summary: pendingSync?.summary || "",
+      snapshots: kind === "snapshots" ? [pendingSync.snapshots[index]] : [],
+      events: kind === "events" ? [pendingSync.events[index]] : [],
+      relationships: kind === "relationships" ? [pendingSync.relationships[index]] : []
+    };
+    applySyncProposal(proposal);
+    setPendingSync((prev) => {
+      const next = { ...prev, [kind]: chapterArr(prev?.[kind]).filter((_, i) => i !== index) };
+      return proposalCount(next) ? next : null;
+    });
+  };
+
+  const dropSyncItem = (kind, index) => {
+    setPendingSync((prev) => {
+      const next = { ...prev, [kind]: chapterArr(prev?.[kind]).filter((_, i) => i !== index) };
+      return proposalCount(next) ? next : null;
+    });
+  };
+
+  const acceptAllSync = () => {
+    applySyncProposal(pendingSync);
+    setPendingSync(null);
   };
 
   // ── Render ──
@@ -180,6 +306,8 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
               <div className="ai-context-row"><span className="ai-context-key">Year</span><span className="ai-context-val">{AVN.yearLabel(chapter.year)} {era && <em style={{ color: "var(--gold-2)", fontStyle: "italic" }}>· {era.name}</em>}</span></div>
               <div className="ai-context-row"><span className="ai-context-key">Place</span><span className="ai-context-val">{place ? place.name : <em style={{ color: "var(--slate)" }}>anywhere</em>}</span></div>
               <div className="ai-context-row"><span className="ai-context-key">Focus</span><span className="ai-context-val">{focuses.length ? focuses.map((f) => f.name).join(" · ") : <em style={{ color: "var(--slate)" }}>none bound</em>}</span></div>
+              <div className="ai-context-row"><span className="ai-context-key">Goal</span><span className="ai-context-val">{chapter.sceneGoal || <em style={{ color: "var(--slate)" }}>unset</em>}</span></div>
+              <div className="ai-context-row"><span className="ai-context-key">Canon</span><span className="ai-context-val">{writingContext.sections?.neighboringChapters ? "scene + neighboring chapters" : "basic context"}</span></div>
             </div>
             <div className="ai-row">
               <button className="ai-btn primary" disabled={busy === "write"} onClick={onContinue}>
@@ -187,6 +315,51 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
               </button>
               <button className="ai-btn" disabled={busy === "write"} onClick={() => updateChapter({ md: (chapter.md || "").replace(/\n*\n[^\n]+$/, "") })}>↶ undo last</button>
             </div>
+          </div>
+        </section>
+
+        {/* Scene card */}
+        <section className="rail-panel">
+          <header className="rail-head">
+            <span className="rail-label">— Scene Card</span>
+            <span className="rail-count">context</span>
+          </header>
+          <div className="rail-body">
+            <label className="scene-field">
+              <span>POV</span>
+              <select value={chapter.povId || ""} onChange={(e) => updateChapter({ povId: e.target.value || null })}>
+                <option value="">Unassigned</option>
+                {world.characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label className="scene-field">
+              <span>Goal</span>
+              <textarea value={chapter.sceneGoal || ""} onChange={(e) => updateChapter({ sceneGoal: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Conflict</span>
+              <textarea value={chapter.conflict || ""} onChange={(e) => updateChapter({ conflict: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Turn</span>
+              <textarea value={chapter.turn || ""} onChange={(e) => updateChapter({ turn: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Emotion</span>
+              <input value={chapter.emotionalDelta || ""} onChange={(e) => updateChapter({ emotionalDelta: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Continuity</span>
+              <textarea value={chapter.continuityNotes || ""} onChange={(e) => updateChapter({ continuityNotes: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Summary</span>
+              <textarea value={chapter.summary || ""} onChange={(e) => updateChapter({ summary: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Style</span>
+              <input value={chapter.styleKey || ""} onChange={(e) => updateChapter({ styleKey: e.target.value })} />
+            </label>
           </div>
         </section>
 
@@ -282,6 +455,71 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
               </button>
             </div>
             {syncSummary && <div className="sync-summary">{syncSummary}</div>}
+            {pendingSync && proposalCount(pendingSync) > 0 && (
+              <div className="sync-proposal">
+                <div className="sync-proposal-head">
+                  <span>{proposalCount(pendingSync)} pending canon notes</span>
+                  <div className="sync-proposal-actions">
+                    <button className="ai-btn small primary" onClick={acceptAllSync}>accept all</button>
+                    <button className="ai-btn small" onClick={() => setPendingSync(null)}>discard</button>
+                  </div>
+                </div>
+                {pendingSync.snapshots.length > 0 && (
+                  <div className="sync-proposal-group">
+                    <div className="sync-proposal-kind">Snapshots</div>
+                    {pendingSync.snapshots.map((s, i) => (
+                      <div key={`snap-${i}`} className="sync-proposal-row">
+                        <div className="sync-proposal-text">
+                          <strong>{entityNameById(world, s.entityId)}</strong>
+                          <span>{AVN.yearLabel(s.year || chapter.year)} · {s.status || "state"}</span>
+                          <p>{s.body}</p>
+                        </div>
+                        <div className="sync-proposal-actions">
+                          <button className="ai-btn small primary" onClick={() => acceptSyncItem("snapshots", i)}>accept</button>
+                          <button className="ai-btn small" onClick={() => dropSyncItem("snapshots", i)}>drop</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pendingSync.events.length > 0 && (
+                  <div className="sync-proposal-group">
+                    <div className="sync-proposal-kind">Events</div>
+                    {pendingSync.events.map((ev, i) => (
+                      <div key={`ev-${i}`} className="sync-proposal-row">
+                        <div className="sync-proposal-text">
+                          <strong>{ev.title || "Untitled event"}</strong>
+                          <span>{AVN.yearLabel(ev.year || chapter.year)}</span>
+                          <p>{ev.body}</p>
+                        </div>
+                        <div className="sync-proposal-actions">
+                          <button className="ai-btn small primary" onClick={() => acceptSyncItem("events", i)}>accept</button>
+                          <button className="ai-btn small" onClick={() => dropSyncItem("events", i)}>drop</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {pendingSync.relationships.length > 0 && (
+                  <div className="sync-proposal-group">
+                    <div className="sync-proposal-kind">Relationships</div>
+                    {pendingSync.relationships.map((r, i) => (
+                      <div key={`rel-${i}`} className="sync-proposal-row">
+                        <div className="sync-proposal-text">
+                          <strong>{entityNameById(world, r.a)} · {r.kind || "ally"} · {entityNameById(world, r.b)}</strong>
+                          <span>{AVN.yearLabel(r.since || chapter.year)}</span>
+                          <p>{r.note}</p>
+                        </div>
+                        <div className="sync-proposal-actions">
+                          <button className="ai-btn small primary" onClick={() => acceptSyncItem("relationships", i)}>accept</button>
+                          <button className="ai-btn small" onClick={() => dropSyncItem("relationships", i)}>drop</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {syncLog.length === 0 && (
               <div className="warn-empty">— this chapter has not yet bled into the bible —</div>
             )}

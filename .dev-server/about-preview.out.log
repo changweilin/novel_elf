@@ -1,0 +1,5 @@
+novel-elf dev server running from C:\Users\user\Documents\app\novel_elf\
+Stories:   C:\Users\user\Documents\app\novel_elf\stories
+Local:     http://localhost:8789/
+Tailscale: http://100.120.189.89:8789/
+Network:   http://192.168.1.113:8789/

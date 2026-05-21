@@ -132,28 +132,165 @@ function entityNameById(world, id) {
   return e ? (e.name || e.title) : id;
 }
 
-function chapterContext(world, chapter) {
-  const place = world.places.find((p) => p.id === chapter.placeId);
-  const era = world.eras.find((e) => chapter.year >= e.start && chapter.year <= e.end);
-  const focuses = (chapter.focusIds || []).map((id) => {
+function arr(value) {
+  return Array.isArray(value) ? value : [];
+}
+
+function cleanLine(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function clampText(value, max = 700) {
+  const text = cleanLine(value);
+  if (text.length <= max) return text;
+  return text.slice(0, max - 1).trimEnd() + "…";
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    const text = cleanLine(value);
+    if (text) return text;
+  }
+  return "";
+}
+
+function mdSummary(md, max = 360) {
+  return clampText(String(md || "")
+    .replace(/^---[\s\S]*?---/m, "")
+    .replace(/^#+\s+/gm, "")
+    .replace(/!\[\[[^\]]+\]\]/g, "")
+    .replace(/\*|\_/g, " "), max);
+}
+
+function findChapterFrame(world, chapter, bookArg, volumeArg) {
+  if (bookArg && volumeArg) {
+    const chapters = arr(volumeArg.chapters);
+    const index = chapters.findIndex((item) => item.id === chapter.id);
+    return { book: bookArg, volume: volumeArg, chapters, index };
+  }
+
+  for (const book of arr(world.library?.books)) {
+    for (const volume of arr(book.volumes)) {
+      const chapters = arr(volume.chapters);
+      const index = chapters.findIndex((item) => item.id === chapter.id);
+      if (index >= 0) return { book, volume, chapters, index };
+    }
+  }
+
+  return { book: null, volume: null, chapters: [chapter], index: 0 };
+}
+
+function renderSceneCard(world, chapter) {
+  const pov = chapter.povId ? AVN.findEntity(world, chapter.povId) : null;
+  const lines = [
+    `POV: ${pov ? pov.name || pov.title : chapter.povId || "—"}`,
+    `Scene goal: ${chapter.sceneGoal || "—"}`,
+    `Conflict: ${chapter.conflict || "—"}`,
+    `Turn: ${chapter.turn || "—"}`,
+    `Emotional delta: ${chapter.emotionalDelta || "—"}`,
+    `Continuity notes: ${chapter.continuityNotes || "—"}`,
+    `Chapter summary so far: ${chapter.summary || mdSummary(chapter.md, 280) || "—"}`,
+    `Style key: ${chapter.styleKey || "match the surrounding chapter voice"}`
+  ];
+  return lines.join("\n");
+}
+
+function renderRelatedChapters(frame) {
+  const rows = [];
+  for (const offset of [-2, -1, 1]) {
+    const chapter = frame.chapters[frame.index + offset];
+    if (!chapter) continue;
+    rows.push(`${offset < 0 ? "Previous" : "Next"} ${Math.abs(offset)}: ${chapter.title || chapter.id} — ${chapter.summary || mdSummary(chapter.md, 260) || chapter.status || "no summary"}`);
+  }
+  return rows.join("\n") || "(none)";
+}
+
+function renderFocusDossier(world, chapter) {
+  return arr(chapter.focusIds).map((id) => {
     const e = AVN.findEntity(world, id);
     if (!e) return id;
     const snap = AVN.snapAt(e, chapter.year);
-    return `${e.name || e.title} (${e.role || "—"})${snap?.body ? " · " + snap.body : ""}`;
-  }).join("\n  ");
-  const events = (chapter.eventIds || []).map((id) => {
-    const ev = world.events.find((x) => x.id === id);
-    return ev ? `${ev.year}: ${ev.title} — ${ev.body}` : id;
-  }).join("\n  ");
-  return `Year ${chapter.year}${era ? " (" + era.name + ")" : ""}. Place: ${place ? place.name : "—"}.
-Focus characters:
-  ${focuses || "(none)"}
-Bound events:
-  ${events || "(none)"}`;
+    const rels = AVN.relsFor(world, id, chapter.year)
+      .slice(0, 5)
+      .map((r) => `${r.kind}: ${entityNameById(world, r.a === id ? r.b : r.a)}${r.note ? " — " + r.note : ""}`)
+      .join("; ");
+    const events = AVN.eventsForEntity(world, id)
+      .filter((ev) => Math.abs(Number(ev.year) - Number(chapter.year)) <= 80)
+      .slice(0, 4)
+      .map((ev) => `${ev.year}: ${ev.title}`)
+      .join("; ");
+    return [
+      `${e.id}: ${e.name || e.title}${e.role ? " — " + e.role : ""}`,
+      `  state: ${snap ? `${snap.status || ""} ${snap.body || ""}`.trim() : "not active at this year"}`,
+      `  relationships: ${rels || "(none nearby)"}`,
+      `  nearby events: ${events || "(none)"}`
+    ].join("\n");
+  }).join("\n") || "(none)";
 }
 
-async function aiWriteChapterParagraph(world, chapter, hint) {
-  const ctx = chapterContext(world, chapter);
+function renderWorldDossier(world, chapter) {
+  const place = arr(world.places).find((p) => p.id === chapter.placeId);
+  const era = arr(world.eras).find((e) => chapter.year >= e.start && chapter.year <= e.end);
+  const boundEvents = arr(chapter.eventIds).map((id) => {
+    const ev = world.events.find((x) => x.id === id);
+    return ev ? `${ev.year}: ${ev.title} — ${ev.body}` : id;
+  }).join("\n");
+  const nearbyEvents = arr(world.events)
+    .filter((ev) => Math.abs(Number(ev.year) - Number(chapter.year)) <= 50)
+    .slice(0, 8)
+    .map((ev) => `${ev.year}: ${ev.title} — ${clampText(ev.body, 180)}`)
+    .join("\n");
+
+  return [
+    `Year: ${chapter.year}${era ? " (" + era.name + ")" : ""}`,
+    `Place: ${place ? `${place.name}${place.body ? " — " + clampText(place.body, 220) : ""}` : "—"}`,
+    `Bound events:\n${boundEvents || "(none)"}`,
+    `Nearby chronology:\n${nearbyEvents || "(none)"}`
+  ].join("\n");
+}
+
+function buildWritingContext(world, chapter, bookArg, volumeArg) {
+  const frame = findChapterFrame(world, chapter, bookArg, volumeArg);
+  const book = frame.book || {};
+  const volume = frame.volume || {};
+  const sections = {
+    story: [
+      `Story: ${world.name}${world.subtitle ? " — " + world.subtitle : ""}`,
+      `Book: ${book.title || "—"}${book.subtitle ? " — " + book.subtitle : ""}`,
+      `Book promise: ${firstText(book.blurb, world.outline, world.worldview, world.subtitle, "—")}`,
+      `Volume: ${volume.title || "—"}${volume.subtitle ? " — " + volume.subtitle : ""}`
+    ].join("\n"),
+    scene: renderSceneCard(world, chapter),
+    canon: renderWorldDossier(world, chapter),
+    focus: renderFocusDossier(world, chapter),
+    neighboringChapters: renderRelatedChapters(frame)
+  };
+
+  return {
+    sections,
+    prompt: `STORY DOSSIER
+${sections.story}
+
+SCENE CARD
+${sections.scene}
+
+CANON CONTEXT
+${sections.canon}
+
+FOCUS DOSSIER
+${sections.focus}
+
+NEIGHBORING CHAPTERS
+${sections.neighboringChapters}`
+  };
+}
+
+function chapterContext(world, chapter, book, volume) {
+  return buildWritingContext(world, chapter, book, volume).prompt;
+}
+
+async function aiWriteChapterParagraph(world, chapter, hint, book, volume) {
+  const ctx = chapterContext(world, chapter, book, volume);
   const tail = (chapter.md || "").split(/\n+/).slice(-6).join("\n");
   const prompt = `Continue this chapter of "${world.name}". Write ONE paragraph (80–140 words). Literary, image-led, present tense. One concrete object that does real work in the paragraph. No fantasy clichés.
 
@@ -171,8 +308,8 @@ Reply with the paragraph only. No preamble, no JSON, no headings.`;
   return (await window.claude.complete(prompt)).trim();
 }
 
-async function aiSyncChapterToWorld(world, chapter) {
-  const ctx = chapterContext(world, chapter);
+async function aiSyncChapterToWorld(world, chapter, book, volume) {
+  const ctx = chapterContext(world, chapter, book, volume);
   const knownIds = [...world.characters, ...world.organizations, ...world.countries, ...world.events]
     .map((e) => `  ${e.id} → ${e.name || e.title}`).join("\n");
   const prompt = `You are a Setting-Bible Scribe for ${world.name}.
@@ -188,7 +325,7 @@ Context: ${ctx}
 Existing entities (id → name):
 ${knownIds}
 
-Return STRICT JSON only. Use empty arrays if nothing to add.
+Return STRICT JSON only. This is a REVIEW PROPOSAL, not an automatic save. Use empty arrays if nothing to add.
 {
   "snapshots":   [ {"entityId":"<id from list>","year":${chapter.year},"body":"one sentence of new info","status":"optional","place":"optional place name"} ],
   "events":      [ {"title":"...","body":"two sentences","year":${chapter.year},"placeId":"optional","participants":["entityIds"]} ],
@@ -198,12 +335,12 @@ Return STRICT JSON only. Use empty arrays if nothing to add.
   return parseJsonLoose(await window.claude.complete(prompt));
 }
 
-async function aiCheckConsistency(world, chapter) {
-  const ctx = chapterContext(world, chapter);
+async function aiCheckConsistency(world, chapter, book, volume) {
+  const ctx = chapterContext(world, chapter, book, volume);
   const relevant = [...(chapter.focusIds || []), ...(chapter.eventIds || [])].map((id) => {
     const e = AVN.findEntity(world, id);
     if (!e) return null;
-    return `${id} — ${e.name || e.title}\n${JSON.stringify(e, null, 2).slice(0, 800)}`;
+    return `${id} — ${e.name || e.title}\n${JSON.stringify(e, null, 2).slice(0, 1400)}`;
   }).filter(Boolean).join("\n\n");
   const prompt = `You are a continuity reader for ${world.name}. Read the chapter against the setting bible and report any contradictions — not stylistic notes, only facts.
 
@@ -230,6 +367,7 @@ If there are no contradictions, return {"warnings": []}.`;
 window.aiWriteChapterParagraph = aiWriteChapterParagraph;
 window.aiSyncChapterToWorld = aiSyncChapterToWorld;
 window.aiCheckConsistency = aiCheckConsistency;
+window.buildWritingContext = buildWritingContext;
 
 function parseJsonLoose(text) {
   const m = text.match(/\{[\s\S]*\}/);

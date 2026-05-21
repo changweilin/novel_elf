@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "node dev-server.mjs --host 0.0.0.0 --port 8789",
     "dev:local": "node dev-server.mjs --host 127.0.0.1 --port 8789",
-    "test": "node --test story-md.test.mjs story-api.test.mjs story-import.test.mjs"
+    "test": "node --test story-md.test.mjs story-api.test.mjs story-import.test.mjs viewport-router.test.mjs ui-surface.test.mjs",
+    "test:router": "node --test viewport-router.test.mjs",
+    "test:ui": "node --test ui-surface.test.mjs"
   }
 }

@@ -56,20 +56,5 @@
     return;
   }
 
-  function routeForViewport() {
-    routeTo(getDesiredLayout(), false);
-  }
-
-  routeForViewport();
-
-  if (current !== "auto") {
-    let resizeTimer = 0;
-    const scheduleRoute = () => {
-      window.clearTimeout(resizeTimer);
-      resizeTimer = window.setTimeout(routeForViewport, 160);
-    };
-
-    window.addEventListener("resize", scheduleRoute, { passive: true });
-    window.addEventListener("orientationchange", scheduleRoute, { passive: true });
-  }
+  routeTo(getDesiredLayout(), false);
 })();

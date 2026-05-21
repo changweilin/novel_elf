@@ -15,6 +15,13 @@ import {
   uniqueStoryId,
   writeWorldToMarkdown
 } from "./story-md.mjs";
+import {
+  buildArticleContextPack,
+  listStoryArticles,
+  listArticleTaskSchemas,
+  readStoryArticle,
+  writeStoryArticleDraft
+} from "./story-articles.mjs";
 
 const root = fileURLToPath(new URL(".", import.meta.url));
 const args = parseArgs(process.argv.slice(2));
@@ -64,6 +71,11 @@ const server = createServer(async (request, response) => {
   } catch (error) {
     if (error?.code === "ENOENT" || error?.code === "ENOTDIR") {
       send(response, 404, "Not found");
+      return;
+    }
+
+    if (error?.statusCode && request.url?.startsWith("/api/")) {
+      sendJson(response, error.statusCode, { error: String(error.message || error) });
       return;
     }
 
@@ -127,6 +139,11 @@ async function resolveRequestPath(requestUrl) {
 }
 
 async function handleApi(request, response, url) {
+  if (url.pathname === "/api/article-tasks" && request.method === "GET") {
+    sendJson(response, 200, { tasks: listArticleTaskSchemas() });
+    return;
+  }
+
   if (url.pathname === "/api/stories" && request.method === "GET") {
     const stories = await ensureStories();
     sendJson(response, 200, { stories });
@@ -145,6 +162,53 @@ async function handleApi(request, response, url) {
     if (body.defaultYear != null) world.defaultYear = Number(body.defaultYear);
     const saved = await writeWorldToMarkdown(storyDir(id), id, world, { archiveMissing: false });
     sendJson(response, 201, { story: storySummary(id, saved), world: saved, stories: await listStories(storiesRoot) });
+    return;
+  }
+
+  const articleListMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles$/);
+  if (articleListMatch && request.method === "GET") {
+    await ensureStories();
+    const id = decodeURIComponent(articleListMatch[1]);
+    assertStoryId(id);
+    const articles = await listStoryArticles(storyDir(id));
+    sendJson(response, 200, { storyId: id, articles });
+    return;
+  }
+
+  const articleContextMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/context$/);
+  if (articleContextMatch && request.method === "GET") {
+    await ensureStories();
+    const id = decodeURIComponent(articleContextMatch[1]);
+    const articleId = decodeURIComponent(articleContextMatch[2]);
+    assertStoryId(id);
+    const contextPack = await buildArticleContextPack(storyDir(id), articleId, {
+      task: url.searchParams.get("task") || "read_article",
+      maxChars: url.searchParams.get("maxChars")
+    });
+    sendJson(response, 200, contextPack);
+    return;
+  }
+
+  const articleDraftMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/drafts$/);
+  if (articleDraftMatch && request.method === "POST") {
+    await ensureStories();
+    const id = decodeURIComponent(articleDraftMatch[1]);
+    const articleId = decodeURIComponent(articleDraftMatch[2]);
+    assertStoryId(id);
+    const body = await readJsonBody(request);
+    const result = await writeStoryArticleDraft(storyDir(id), articleId, body);
+    sendJson(response, 201, result);
+    return;
+  }
+
+  const articleReadMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)$/);
+  if (articleReadMatch && request.method === "GET") {
+    await ensureStories();
+    const id = decodeURIComponent(articleReadMatch[1]);
+    const articleId = decodeURIComponent(articleReadMatch[2]);
+    assertStoryId(id);
+    const article = await readStoryArticle(storyDir(id), articleId);
+    sendJson(response, 200, article);
     return;
   }
 

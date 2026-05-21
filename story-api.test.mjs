@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -63,6 +63,103 @@ test("story API seeds, creates, saves, renames, and archives Markdown stories", 
     const archived = await request(`${base}/api/stories/${created.story.id}`, { method: "DELETE" });
     assert.ok(archived.ok);
     assert.ok(!archived.stories.some((story) => story.id === created.story.id));
+  } finally {
+    server.kill();
+    await onceExit(server);
+    await rm(tmp, { recursive: true, force: true });
+  }
+});
+
+test("article API indexes chapters, reads article context, and writes safe drafts", async () => {
+  const tmp = await mkdtemp(join(tmpdir(), "novel-elf-article-api-"));
+  const port = 20000 + Math.floor(Math.random() * 1000);
+  const storiesRoot = join(tmp, "stories");
+  const server = spawn(process.execPath, [
+    "dev-server.mjs",
+    "--host",
+    "127.0.0.1",
+    "--port",
+    String(port),
+    "--stories-root",
+    storiesRoot
+  ], {
+    cwd: process.cwd(),
+    stdio: ["ignore", "pipe", "pipe"]
+  });
+
+  try {
+    await waitForServer(server);
+    const base = `http://127.0.0.1:${port}`;
+
+    const listed = await request(`${base}/api/stories`);
+    const storyId = listed.stories[0].id;
+    const indexed = await request(`${base}/api/stories/${storyId}/articles`);
+    const chapter = indexed.articles.find((article) => article.kind === "chapter");
+
+    assert.ok(chapter, "expected at least one chapter in article index");
+    assert.ok(chapter.id.startsWith("chapter:"));
+    assert.ok(chapter.path.startsWith("library/"));
+    assert.ok(chapter.wordCount >= 0);
+    assert.ok(chapter.updatedAt);
+
+    const detail = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}`);
+    assert.equal(detail.article.id, chapter.id);
+    assert.equal(detail.frontmatter.id, chapter.chapterId);
+    assert.equal(typeof detail.markdownBody, "string");
+    assert.ok(Array.isArray(detail.outline));
+    assert.ok(Array.isArray(detail.chunks));
+    assert.ok(detail.relatedWorld.story.id);
+    assert.ok("previous" in detail.adjacentChapters);
+    assert.ok("next" in detail.adjacentChapters);
+
+    const tasks = await request(`${base}/api/article-tasks`);
+    assert.deepEqual(
+      ["check_consistency", "continue_article", "propose_patch", "read_article", "rewrite_section", "summarize_article", "sync_article_to_world"].sort(),
+      tasks.tasks.map((item) => item.task).sort()
+    );
+    assert.ok(tasks.tasks.find((item) => item.task === "propose_patch").allowedWrites.includes("draft"));
+
+    const context = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/context?task=rewrite_section&maxChars=3000`);
+    assert.equal(context.task, "rewrite_section");
+    assert.equal(context.schema.task, "rewrite_section");
+    assert.ok(context.budget.usedChars <= context.budget.maxChars);
+    assert.ok(context.sections.some((section) => section.kind === "article"));
+    assert.ok(context.sections.some((section) => section.kind === "article_body"));
+
+    const nextBody = `${detail.markdownBody.trim()}\n\nDraft-only test line.`;
+    const draft = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts`, {
+      method: "POST",
+      body: JSON.stringify({
+        markdownBody: nextBody,
+        frontmatterPatch: { status: "revising" }
+      })
+    });
+
+    assert.equal(draft.draft.articleId, chapter.id);
+    assert.equal(draft.draft.applied, false);
+    assert.ok(draft.draft.path.startsWith("_drafts/articles/"));
+    assert.match(draft.diffPreview, /\+Draft-only test line\./);
+
+    const draftText = await readFile(join(storiesRoot, storyId, draft.draft.path), "utf8");
+    assert.match(draftText, /"status": "revising"/);
+    assert.match(draftText, /Draft-only test line\./);
+
+    const patchDraft = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts`, {
+      method: "POST",
+      body: JSON.stringify({
+        bodyPatch: { type: "append", text: "Patch-only test line." },
+        frontmatterPatch: { status: "patch-proposed" }
+      })
+    });
+    assert.equal(patchDraft.draft.patchType, "append");
+    assert.match(patchDraft.diffPreview, /\+Patch-only test line\./);
+
+    const patchDraftText = await readFile(join(storiesRoot, storyId, patchDraft.draft.path), "utf8");
+    assert.match(patchDraftText, /"status": "patch-proposed"/);
+    assert.match(patchDraftText, /Patch-only test line\./);
+
+    const reread = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}`);
+    assert.equal(reread.markdownBody, detail.markdownBody);
   } finally {
     server.kill();
     await onceExit(server);
