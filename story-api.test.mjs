@@ -158,8 +158,57 @@ test("article API indexes chapters, reads article context, and writes safe draft
     assert.match(patchDraftText, /"status": "patch-proposed"/);
     assert.match(patchDraftText, /Patch-only test line\./);
 
+    await assert.rejects(
+      request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts/${encodeURIComponent(patchDraft.draft.id)}/apply`, {
+        method: "POST",
+        body: JSON.stringify({})
+      }),
+      /400/
+    );
+
     const reread = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}`);
     assert.equal(reread.markdownBody, detail.markdownBody);
+
+    const applied = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/drafts/${encodeURIComponent(patchDraft.draft.id)}/apply`, {
+      method: "POST",
+      body: JSON.stringify({ confirmApply: true })
+    });
+    assert.equal(applied.ok, true);
+    assert.equal(applied.draft.applied, true);
+    assert.equal(applied.version.reason, "before_apply");
+    assert.ok(applied.version.path.includes("/versions/"));
+    assert.match(applied.diffPreview, /\+Patch-only test line\./);
+
+    const appliedDraftText = await readFile(join(storiesRoot, storyId, patchDraft.draft.path), "utf8");
+    assert.match(appliedDraftText, /"applied": true/);
+    assert.match(appliedDraftText, /"versionId":/);
+
+    const appliedArticle = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}`);
+    assert.match(appliedArticle.markdownBody, /Patch-only test line\./);
+    assert.equal(appliedArticle.frontmatter.status, "patch-proposed");
+    assert.equal(appliedArticle.frontmatter.draftOf, undefined);
+
+    const versions = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/versions`);
+    assert.ok(versions.versions.some((version) => version.id === applied.version.id));
+
+    await assert.rejects(
+      request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/versions/${encodeURIComponent(applied.version.id)}/restore`, {
+        method: "POST",
+        body: JSON.stringify({})
+      }),
+      /400/
+    );
+
+    const restored = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/versions/${encodeURIComponent(applied.version.id)}/restore`, {
+      method: "POST",
+      body: JSON.stringify({ confirmRestore: true })
+    });
+    assert.equal(restored.ok, true);
+    assert.equal(restored.rollbackVersion.reason, "before_restore");
+
+    const restoredArticle = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}`);
+    assert.equal(restoredArticle.markdownBody, detail.markdownBody);
+    assert.equal(restoredArticle.frontmatter.status, detail.frontmatter.status);
   } finally {
     server.kill();
     await onceExit(server);

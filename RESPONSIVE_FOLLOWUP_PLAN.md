@@ -11,6 +11,7 @@
 - 2026-05-21 20:41 Asia/Taipei：P2 已完成。`useAevenmereWorkspace` 現在回傳 `state`、`sourceState`、`storyActions`、`entityActions`、`aiActions` 五個群組，`app.jsx` 與 `mobile.jsx` 已改用分組 API；新增 grouped API 邊界測試。瀏覽器實測桌機與手機入口，console error 為空；完整 `npm run test` 通過 14 項測試。下一步依建議順序接續 P6 的文章索引 API、讀取 API 與 draft write。
 - 2026-05-21 21:01 Asia/Taipei：P6 第一段已完成。新增 `story-articles.mjs`，並在 dev server 加入 `GET /api/stories/:id/articles`、`GET /api/stories/:id/articles/:articleId`、`POST /api/stories/:id/articles/:articleId/drafts`。索引會回傳 story/book/volume/chapter 文件摘要，讀取會回傳 frontmatter、markdown body、outline、chunks、相鄰章節與關聯世界摘要，draft write 會寫入 `_drafts/articles/` 並產生 diff preview，不覆蓋正式文章。完整 `npm run test` 通過 15 項測試。下一步接續 P6 的 patch-based update、AI 任務 schema 與 context packer。
 - 2026-05-21 21:21 Asia/Taipei：P6 第二段已完成。`POST /api/stories/:id/articles/:articleId/drafts` 現在支援 `bodyPatch`（append/prepend/replace_text/replace_section/replace_body）與 frontmatter patch draft；新增 `GET /api/article-tasks` 提供 7 種 AI 任務 schema，並新增 `GET /api/stories/:id/articles/:articleId/context?task=...&maxChars=...` 產生受字數限制的 context pack。完整 `npm run test` 通過 15 項測試。下一步接續 P6 的正式套用確認/回復版本與文章品質驗證。
+- 2026-05-21 22:22 Asia/Taipei：P6 第三段已完成。新增 confirmed apply 與 restore-version API：`POST /api/stories/:id/articles/:articleId/drafts/:draftId/apply` 需要 `confirmApply: true` 才會把 draft 套用到正式文章，套用前會在 `_drafts/articles/.../versions/` 保留可回復版本；`GET /api/stories/:id/articles/:articleId/versions` 可列出版本，`POST /api/stories/:id/articles/:articleId/versions/:versionId/restore` 需要 `confirmRestore: true` 才會回復，且回復前也會保留 rollback version。完整 `npm run test` 通過 15 項測試。下一步接續 P6 的文章品質驗證。
 
 ## P1：補上瀏覽器行為測試（已完成）
 
@@ -87,7 +88,7 @@
   - 支援 draft write，不直接覆蓋正式文章。
   - 支援 patch-based update，例如只改某一節、某段、frontmatter 欄位。
   - 每次寫入都產生 diff preview，使用者確認後才套用到 stories 目錄。
-  - 狀態：已完成 draft write、patch-based draft 與 diff preview，API 為 `POST /api/stories/:id/articles/:articleId/drafts`；使用者確認套用尚未完成。
+  - 狀態：已完成 draft write、patch-based draft、diff preview、使用者確認套用與版本回復。draft API 為 `POST /api/stories/:id/articles/:articleId/drafts`；套用 API 為 `POST /api/stories/:id/articles/:articleId/drafts/:draftId/apply`，需 `confirmApply: true`；版本 API 為 `GET /api/stories/:id/articles/:articleId/versions` 與 `POST /api/stories/:id/articles/:articleId/versions/:versionId/restore`，回復需 `confirmRestore: true`。
 - 建立 AI 任務 schema：
   - `read_article`
   - `summarize_article`
@@ -106,10 +107,12 @@
   - AI 只能寫入 `stories/` 下的文章內容，不直接改 app code。
   - 任何覆蓋、刪除、封存文章都需要使用者確認。
   - 每次 AI 修改保留可回復版本或 draft copy。
+  - 狀態：已完成第一版。draft 先寫入 `_drafts/articles/`；正式文章覆蓋需要 explicit confirm；套用與回復都會保留可回復版本。
 - 建立文章品質驗證：
   - Markdown/frontmatter parse test。
   - world sync test：文章中新增角色、地點、事件時，能檢查是否同步到 world data。
   - consistency check：年份、角色生死、地點名稱、組織歸屬不得明顯矛盾。
+  - 狀態：尚未完成，下一步處理。
 - 驗收標準：
   - AI 能列出文章、讀取指定文章、提出 patch、產生 diff。
   - 未經確認不會直接修改正式文章。

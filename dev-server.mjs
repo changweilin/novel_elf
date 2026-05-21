@@ -16,10 +16,13 @@ import {
   writeWorldToMarkdown
 } from "./story-md.mjs";
 import {
+  applyStoryArticleDraft,
   buildArticleContextPack,
+  listStoryArticleVersions,
   listStoryArticles,
   listArticleTaskSchemas,
   readStoryArticle,
+  restoreStoryArticleVersion,
   writeStoryArticleDraft
 } from "./story-articles.mjs";
 
@@ -198,6 +201,43 @@ async function handleApi(request, response, url) {
     const body = await readJsonBody(request);
     const result = await writeStoryArticleDraft(storyDir(id), articleId, body);
     sendJson(response, 201, result);
+    return;
+  }
+
+  const articleDraftApplyMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/drafts\/([^/]+)\/apply$/);
+  if (articleDraftApplyMatch && request.method === "POST") {
+    await ensureStories();
+    const id = decodeURIComponent(articleDraftApplyMatch[1]);
+    const articleId = decodeURIComponent(articleDraftApplyMatch[2]);
+    const draftId = decodeURIComponent(articleDraftApplyMatch[3]);
+    assertStoryId(id);
+    const body = await readJsonBody(request);
+    const result = await applyStoryArticleDraft(storyDir(id), articleId, draftId, body);
+    sendJson(response, 200, result);
+    return;
+  }
+
+  const articleVersionsMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/versions$/);
+  if (articleVersionsMatch && request.method === "GET") {
+    await ensureStories();
+    const id = decodeURIComponent(articleVersionsMatch[1]);
+    const articleId = decodeURIComponent(articleVersionsMatch[2]);
+    assertStoryId(id);
+    const versions = await listStoryArticleVersions(storyDir(id), articleId);
+    sendJson(response, 200, { storyId: id, articleId, versions });
+    return;
+  }
+
+  const articleVersionRestoreMatch = url.pathname.match(/^\/api\/stories\/([^/]+)\/articles\/([^/]+)\/versions\/([^/]+)\/restore$/);
+  if (articleVersionRestoreMatch && request.method === "POST") {
+    await ensureStories();
+    const id = decodeURIComponent(articleVersionRestoreMatch[1]);
+    const articleId = decodeURIComponent(articleVersionRestoreMatch[2]);
+    const versionId = decodeURIComponent(articleVersionRestoreMatch[3]);
+    assertStoryId(id);
+    const body = await readJsonBody(request);
+    const result = await restoreStoryArticleVersion(storyDir(id), articleId, versionId, body);
+    sendJson(response, 200, result);
     return;
   }
 

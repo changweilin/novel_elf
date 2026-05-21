@@ -262,6 +262,125 @@ export async function writeStoryArticleDraft(storyDir, articleId, input = {}) {
   };
 }
 
+export async function applyStoryArticleDraft(storyDir, articleId, draftId, input = {}) {
+  assertSafeArticleId(articleId);
+  assertSafeFileId(draftId, "draft id");
+  if (input.confirmApply !== true && input.confirm !== true) {
+    throw httpError(400, "Applying a draft requires confirmApply: true");
+  }
+
+  const rootDir = resolve(storyDir);
+  const found = await findArticle(rootDir, articleId);
+  const draftPath = articleDraftPath(rootDir, articleId, draftId);
+  if (!(await exists(draftPath))) {
+    throw httpError(404, `Draft not found: ${draftId}`);
+  }
+
+  const current = await readMarkdownFile(found.filePath);
+  const draft = await readMarkdownFile(draftPath);
+  if (draft.meta.draftOf && draft.meta.draftOf !== articleId) {
+    throw httpError(409, `Draft ${draftId} belongs to ${draft.meta.draftOf}`);
+  }
+
+  const now = new Date().toISOString();
+  const version = await writeArticleVersion(rootDir, articleId, found, current, "before_apply", now);
+  const nextMeta = officialMetaFromDraft(draft.meta, current.meta, now);
+  assertInside(rootDir, found.filePath);
+  await writeFile(found.filePath, formatMarkdown(nextMeta, draft.body), "utf8");
+  await writeFile(draftPath, formatMarkdown({
+    ...draft.meta,
+    draftOf: articleId,
+    applied: true,
+    appliedAt: now,
+    appliedTo: found.path,
+    versionId: version.id
+  }, draft.body), "utf8");
+
+  return {
+    ok: true,
+    draft: {
+      id: draftId,
+      articleId,
+      path: normalizeRel(relative(rootDir, draftPath)),
+      applied: true,
+      appliedAt: now
+    },
+    version,
+    article: stripRuntimeFields(found),
+    diffPreview: diffLines(current.body, draft.body)
+  };
+}
+
+export async function listStoryArticleVersions(storyDir, articleId) {
+  assertSafeArticleId(articleId);
+  const rootDir = resolve(storyDir);
+  await findArticle(rootDir, articleId);
+  const versionsDir = articleVersionsDir(rootDir, articleId);
+  if (!(await exists(versionsDir))) return [];
+
+  const files = (await readdir(versionsDir, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && extname(entry.name).toLowerCase() === ".md")
+    .map((entry) => entry.name)
+    .sort();
+
+  const versions = [];
+  for (const file of files) {
+    const filePath = join(versionsDir, file);
+    const parsed = await readMarkdownFile(filePath);
+    const info = await stat(filePath);
+    versions.push({
+      id: basename(file, extname(file)),
+      articleId,
+      path: normalizeRel(relative(rootDir, filePath)),
+      createdAt: parsed.meta.versionCreatedAt || info.mtime.toISOString(),
+      reason: parsed.meta.versionReason || null,
+      sourcePath: parsed.meta.sourcePath || null
+    });
+  }
+
+  return versions.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+export async function restoreStoryArticleVersion(storyDir, articleId, versionId, input = {}) {
+  assertSafeArticleId(articleId);
+  assertSafeFileId(versionId, "version id");
+  if (input.confirmRestore !== true && input.confirm !== true) {
+    throw httpError(400, "Restoring an article version requires confirmRestore: true");
+  }
+
+  const rootDir = resolve(storyDir);
+  const found = await findArticle(rootDir, articleId);
+  const versionPath = articleVersionPath(rootDir, articleId, versionId);
+  if (!(await exists(versionPath))) {
+    throw httpError(404, `Article version not found: ${versionId}`);
+  }
+
+  const current = await readMarkdownFile(found.filePath);
+  const version = await readMarkdownFile(versionPath);
+  if (version.meta.versionOf && version.meta.versionOf !== articleId) {
+    throw httpError(409, `Version ${versionId} belongs to ${version.meta.versionOf}`);
+  }
+
+  const now = new Date().toISOString();
+  const rollbackVersion = await writeArticleVersion(rootDir, articleId, found, current, "before_restore", now);
+  const nextMeta = officialMetaFromDraft(version.meta, current.meta, now);
+  assertInside(rootDir, found.filePath);
+  await writeFile(found.filePath, formatMarkdown(nextMeta, version.body), "utf8");
+
+  return {
+    ok: true,
+    restored: {
+      id: versionId,
+      articleId,
+      path: normalizeRel(relative(rootDir, versionPath)),
+      restoredAt: now
+    },
+    rollbackVersion,
+    article: stripRuntimeFields(found),
+    diffPreview: diffLines(current.body, version.body)
+  };
+}
+
 async function findArticle(rootDir, articleId) {
   const article = (await listStoryArticles(rootDir)).find((item) => item.id === articleId);
   if (!article) {
@@ -656,6 +775,12 @@ function assertSafeArticleId(articleId) {
   }
 }
 
+function assertSafeFileId(id, label) {
+  if (!/^[A-Za-z0-9][A-Za-z0-9_-]*$/.test(id || "")) {
+    throw new Error(`Unsafe ${label}: ${id}`);
+  }
+}
+
 function assertInside(rootDir, targetPath) {
   const safeRoot = resolve(rootDir);
   const safeTarget = resolve(targetPath);
@@ -718,6 +843,96 @@ function trimText(value, max) {
 
 function safeDraftName(articleId) {
   return slugify(articleId.replace(/:/g, "-").replace(/\//g, "-"), "article");
+}
+
+function articleDraftPath(rootDir, articleId, draftId) {
+  const filePath = join(rootDir, "_drafts", "articles", safeDraftName(articleId), `${draftId}.md`);
+  assertInside(rootDir, filePath);
+  return filePath;
+}
+
+function articleVersionsDir(rootDir, articleId) {
+  const dirPath = join(rootDir, "_drafts", "articles", safeDraftName(articleId), "versions");
+  assertInside(rootDir, dirPath);
+  return dirPath;
+}
+
+function articleVersionPath(rootDir, articleId, versionId) {
+  const filePath = join(articleVersionsDir(rootDir, articleId), `${versionId}.md`);
+  assertInside(rootDir, filePath);
+  return filePath;
+}
+
+async function writeArticleVersion(rootDir, articleId, article, parsed, reason, now) {
+  const versionId = await uniqueArticleFileId(rootDir, articleId, `${safeDraftName(articleId)}_${stamp(now)}_${reason}`, "versions");
+  const versionRelPath = normalizeRel(join("_drafts", "articles", safeDraftName(articleId), "versions", `${versionId}.md`));
+  const versionPath = join(rootDir, versionRelPath);
+  assertInside(rootDir, versionPath);
+  await mkdir(dirname(versionPath), { recursive: true });
+  await writeFile(versionPath, formatMarkdown({
+    ...parsed.meta,
+    versionOf: articleId,
+    versionCreatedAt: now,
+    versionReason: reason,
+    sourcePath: article.path
+  }, parsed.body), "utf8");
+
+  return {
+    id: versionId,
+    articleId,
+    path: versionRelPath,
+    createdAt: now,
+    reason
+  };
+}
+
+async function uniqueArticleFileId(rootDir, articleId, baseId, section) {
+  let candidate = baseId;
+  let index = 2;
+  while (await exists(join(rootDir, "_drafts", "articles", safeDraftName(articleId), section, `${candidate}.md`))) {
+    candidate = `${baseId}-${index}`;
+    index += 1;
+  }
+  return candidate;
+}
+
+function officialMetaFromDraft(candidateMeta, fallbackMeta, savedAt) {
+  const meta = { ...(candidateMeta || {}) };
+  for (const key of [
+    "draftOf",
+    "draftCreatedAt",
+    "applied",
+    "appliedAt",
+    "appliedTo",
+    "versionId",
+    "versionOf",
+    "versionCreatedAt",
+    "versionReason",
+    "sourcePath"
+  ]) {
+    delete meta[key];
+  }
+
+  for (const key of ["schema", "kind", "__order", "id"]) {
+    if (meta[key] == null && fallbackMeta?.[key] != null) {
+      meta[key] = fallbackMeta[key];
+    }
+  }
+
+  return {
+    ...meta,
+    savedAt
+  };
+}
+
+function httpError(statusCode, message) {
+  const error = new Error(message);
+  error.statusCode = statusCode;
+  return error;
+}
+
+function stamp(value) {
+  return String(value).replace(/[:.]/g, "-");
 }
 
 function kindRank(kind) {
