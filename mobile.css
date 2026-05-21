@@ -103,6 +103,73 @@
   font-size: 8px;
   line-height: 1.35;
 }
+.mob-source-scope {
+  margin: 8px 14px 6px;
+  padding: 8px;
+  border: 1px solid #2a2218;
+  background: #0e0b07;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 6px 8px;
+  align-items: center;
+}
+.mob-source-scope.on-map {
+  position: absolute;
+  left: 12px;
+  right: 56px;
+  top: 12px;
+  z-index: 7;
+  margin: 0;
+  background: rgba(14,11,7,0.86);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.mob-source-mode {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid #3a2d20;
+  background: #15110b;
+  color: var(--paper-dim);
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.mob-source-scope.is-on .mob-source-mode {
+  background: var(--gold);
+  border-color: var(--gold);
+  color: var(--ink);
+}
+.mob-source-mode:disabled {
+  opacity: 0.5;
+}
+.mob-source-selects {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  min-width: 0;
+}
+.mob-source-selects select {
+  min-width: 0;
+  width: 100%;
+  height: 28px;
+  border: 1px solid #3a2d20;
+  background: #15110b;
+  color: var(--paper);
+  font-family: var(--serif);
+  font-size: 11px;
+}
+.mob-source-selects select:disabled {
+  opacity: 0.45;
+}
+.mob-source-meta {
+  grid-column: 1 / -1;
+  font-family: var(--mono);
+  font-size: 7.5px;
+  letter-spacing: 0.14em;
+  color: var(--slate);
+  text-transform: uppercase;
+}
 .mob-top-side {
   display: flex;
   flex-direction: column;

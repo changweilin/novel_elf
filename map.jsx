@@ -11,6 +11,11 @@ const WorldMap = ({ world, currentYear, layers, selectedRegionId, onSelectRegion
   const [drawHover, setDrawHover] = React.useState(null);
 
   const isDrawing = !!drawing;
+  const sourceIndex = React.useMemo(() => AVN.buildSourceIndex(world), [world.library]);
+  const sourceLabelFor = (id) => {
+    const ref = AVN.sourceRefsForEntity(world, id, sourceIndex)[0];
+    return ref ? AVN.compactSourceLabel(ref) : "";
+  };
 
   // Convert client (x,y) → SVG viewBox (x,y)
   const toSvg = (clientX, clientY) => {
@@ -83,6 +88,7 @@ const WorldMap = ({ world, currentYear, layers, selectedRegionId, onSelectRegion
     const focused = focusId === c.id;
     return (
       <g key={c.id} className="map-country" onClick={(e) => { e.stopPropagation(); onFocus(c.id); }}>
+        <title>{sourceLabelFor(c.id) ? `${c.name} / ${sourceLabelFor(c.id)}` : c.name}</title>
         <polygon
           points={s.territory}
           fill={c.accent}
@@ -123,6 +129,7 @@ const WorldMap = ({ world, currentYear, layers, selectedRegionId, onSelectRegion
     const focused = focusId === o.id;
     return (
       <g key={o.id} onClick={(e) => { e.stopPropagation(); onFocus(o.id); }} style={{ cursor: "pointer" }}>
+        <title>{sourceLabelFor(o.id) ? `${o.name} / ${sourceLabelFor(o.id)}` : o.name}</title>
         {s.territory && (
           <polygon points={s.territory} fill="none" stroke={o.accent}
                    strokeWidth={focused ? 2.2 : 1.2} strokeDasharray="2 4" opacity={focused ? 0.95 : 0.65} />
@@ -153,6 +160,7 @@ const WorldMap = ({ world, currentYear, layers, selectedRegionId, onSelectRegion
     return (
       <g key={c.id} transform={`translate(${loc.x + dx},${loc.y + dy})`}
          onClick={(e) => { e.stopPropagation(); onFocus(c.id); }} style={{ cursor: "pointer" }}>
+        <title>{sourceLabelFor(c.id) ? `${c.name} / ${sourceLabelFor(c.id)}` : c.name}</title>
         <circle r={focused ? 11 : 7} fill="#2a1f15" stroke="#f3e8d2" strokeWidth={focused ? 2 : 1.2} />
         <text textAnchor="middle" y={focused ? 4 : 3} fontFamily="Cormorant SC, serif"
               fontSize={focused ? 12 : 9} fill="#f3e8d2" letterSpacing="0.04em">{initial}</text>
@@ -184,12 +192,17 @@ const WorldMap = ({ world, currentYear, layers, selectedRegionId, onSelectRegion
       const dx = (hashStr(ev.id) % 60) - 30;
       const dy = ((hashStr(ev.id) >> 3) % 40) - 20;
       const focused = focusId === ev.id;
+      const sourceLabel = sourceLabelFor(ev.id);
       return (
         <g key={ev.id} transform={`translate(${loc.x + dx},${loc.y + dy})`}
            onClick={(e) => { e.stopPropagation(); onFocus(ev.id); }} style={{ cursor: "pointer" }}>
+          <title>{sourceLabel ? `${ev.title} / ${sourceLabel}` : ev.title}</title>
           {focused && <circle r="14" fill="#8a2f2a" fillOpacity="0.18" stroke="#8a2f2a" strokeWidth="1.2" />}
           <path d="M 0 -7 L 6 0 L 0 7 L -6 0 Z" fill="#8a2f2a" stroke="#2a1f15" strokeWidth="0.8" />
           <text x="9" y="4" fontFamily="EB Garamond, serif" fontStyle="italic" fontSize="11" fill="#2a1f15">{ev.title}</text>
+          {focused && sourceLabel && (
+            <text x="9" y="17" fontFamily="JetBrains Mono, monospace" fontSize="8" fill="#5a4a37" letterSpacing="0.08em">{sourceLabel}</text>
+          )}
         </g>
       );
     });

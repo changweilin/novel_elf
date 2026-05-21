@@ -23,6 +23,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   const place = world.places.find((p) => p.id === chapter.placeId);
   const era = world.eras.find((e) => chapter.year >= e.start && chapter.year <= e.end);
   const focuses = (chapter.focusIds || []).map((id) => AVN.findEntity(world, id)).filter(Boolean);
+  const chapterSourceRef = { bookId: book.id, volumeId: volume.id, chapterId: chapter.id };
 
   // ── Word count + autosave (already in world state) ──
   const words = (chapter.md || "").trim().split(/\s+/).filter(Boolean).length;
@@ -67,7 +68,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
           const ent = W[key].find((e) => e.id === s.entityId);
           if (!ent) continue;
           const placeObj = world.places.find((p) => p.name?.toLowerCase() === (s.place || "").toLowerCase());
-          const expanded = { year: s.year || chapter.year, body: s.body || "", status: s.status };
+          const expanded = { year: s.year || chapter.year, body: s.body || "", status: s.status, sourceRefs: [chapterSourceRef] };
           if (kind === "character") expanded.location = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : (AVN.snapAt(ent, s.year)?.location || ent.snapshots?.[0]?.location);
           if (kind === "organization") expanded.hq = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : (AVN.snapAt(ent, s.year)?.hq || ent.snapshots?.[0]?.hq);
           if (kind === "country") expanded.capital = placeObj ? { x: placeObj.x, y: placeObj.y, name: placeObj.name } : (AVN.snapAt(ent, s.year)?.capital || ent.snapshots?.[0]?.capital);
@@ -77,14 +78,14 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
         // events
         for (const ev of (out.events || [])) {
           const id = "ev_" + Math.random().toString(36).slice(2, 7);
-          W = { ...W, events: [...W.events, { id, year: ev.year || chapter.year, title: ev.title, body: ev.body, placeId: ev.placeId || chapter.placeId, participants: ev.participants || [] }] };
+          W = { ...W, events: [...W.events, { id, year: ev.year || chapter.year, title: ev.title, body: ev.body, placeId: ev.placeId || chapter.placeId, participants: ev.participants || [], sourceRefs: [chapterSourceRef] }] };
           stamps.push(`+ event · ${ev.title}`);
         }
         // relationships
         for (const r of (out.relationships || [])) {
           if (!AVN.findEntity(W, r.a) || !AVN.findEntity(W, r.b)) continue;
           const id = "rl_" + Math.random().toString(36).slice(2, 7);
-          W = { ...W, relationships: [...(W.relationships || []), { id, a: r.a, b: r.b, kind: r.kind || "ally", since: r.since || chapter.year, until: null, note: r.note || "" }] };
+          W = { ...W, relationships: [...(W.relationships || []), { id, a: r.a, b: r.b, kind: r.kind || "ally", since: r.since || chapter.year, until: null, note: r.note || "", sourceRefs: [chapterSourceRef] }] };
           stamps.push(`+ relationship · ${AVN.entityName(W, r.a)} ${r.kind} ${AVN.entityName(W, r.b)}`);
         }
         return W;

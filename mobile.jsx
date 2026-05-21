@@ -33,12 +33,17 @@ function MobileApp() {
   const [layers, setLayers] = useState({
     events: true, countries: true, orgs: true, characters: true, conflicts: true, eventsWindow: 240
   });
+  const [sourceRange, setSourceRange] = useState({ enabled: false, startKey: "", endKey: "" });
   const [selectedRegionId, setSelectedRegionId] = useState(null);
   const [focusId, setFocusId] = useState(null);
   const [hint, setHint] = useState("");
   const [story, setStory] = useState("");
   const [busy, setBusy] = useState(null);
   const [err, setErr] = useState(null);
+
+  const sourceIndex = useMemo(() => AVN.buildSourceIndex(world), [world.library]);
+  const sourceScope = useMemo(() => AVN.resolveSourceScope(sourceIndex, sourceRange), [sourceIndex, sourceRange]);
+  const scopedWorld = useMemo(() => AVN.filterWorldBySourceScope(world, sourceScope, sourceIndex), [world, sourceScope, sourceIndex]);
 
   useEffect(() => {
     let alive = true;
@@ -97,6 +102,11 @@ function MobileApp() {
     window.StoryStore.setUi(activeStory.id, "folio", folio);
   }, [folio, activeStory?.id, storyReady]);
 
+  useEffect(() => {
+    if (!sourceScope.enabled || !focusId) return;
+    if (!AVN.findEntity(scopedWorld, focusId)) setFocusId(null);
+  }, [sourceScope.enabled, sourceScope.startKey, sourceScope.endKey, scopedWorld, focusId]);
+
   const applyLoadedStory = (loaded) => {
     const nextWorld = window.StoryStore.normalizeWorld(loaded.world);
     const nextStory = loaded.story || window.StoryStore.storyFromWorld(nextWorld);
@@ -106,6 +116,7 @@ function MobileApp() {
     setFolio(window.StoryStore.getUi(nextStory.id, "folio", "atelier"));
     setFocusId(window.StoryStore.firstFocus(nextWorld));
     setSelectedRegionId(nextWorld.regions[0]?.id || null);
+    setSourceRange({ enabled: false, startKey: "", endKey: "" });
     setStory("");
     setHint("");
     setErr(null);
@@ -239,6 +250,12 @@ function MobileApp() {
   const canUseStoryApi = storeMode === "api";
 
   const counts = {
+    events: scopedWorld.events.length,
+    characters: scopedWorld.characters.length,
+    orgs: scopedWorld.organizations.length,
+    countries: scopedWorld.countries.length
+  };
+  const totalCounts = {
     events: world.events.length,
     characters: world.characters.length,
     orgs: world.organizations.length,
@@ -259,14 +276,20 @@ function MobileApp() {
 
   // ── Quick add (blank) ────────────────────────────────
   const uid = (p) => p + "_" + Math.random().toString(36).slice(2, 8);
+  const sourceRefsForNewRecord = () => {
+    const ref = sourceScope.enabled ? AVN.minimalSourceRef(sourceScope.end) : null;
+    return ref ? [ref] : [];
+  };
   const addBlankEvent = () => {
     const id = uid("ev");
-    setWorld((w) => ({ ...w, events: [...w.events, { id, year: currentYear, title: "An unnamed happening", body: "", placeId: null, participants: [] }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, events: [...w.events, { id, year: currentYear, title: "An unnamed happening", body: "", placeId: null, participants: [], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
     setView("chronicle"); setChronTab("events"); setFocusId(id);
   };
   const addBlankChar = () => {
     const id = uid("ch");
-    setWorld((w) => ({ ...w, characters: [...w.characters, { id, name: "Someone unnamed", role: "of the Reach", born: currentYear - 25, died: null, snapshots: [{ year: currentYear, location: { x: 500, y: 340, name: "" }, status: "alive", body: "" }] }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, characters: [...w.characters, { id, name: "Someone unnamed", role: "of the Reach", born: currentYear - 25, died: null, snapshots: [{ year: currentYear, location: { x: 500, y: 340, name: "" }, status: "alive", body: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
     setView("chronicle"); setChronTab("characters"); setFocusId(id);
   };
 
@@ -283,12 +306,14 @@ function MobileApp() {
         const out = await window.aiGenerateCharacter(world, hint, currentYear);
         const id = uid("ch");
         const snaps = (out.snapshots || []).map((s) => ({ year: s.year, status: s.status, body: s.body, location: expandPlace(s.place) }));
-        setWorld((w) => ({ ...w, characters: [{ id, name: out.name, role: out.role, born: out.born ?? currentYear - 25, died: null, snapshots: snaps, body: out.body }, ...w.characters] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, characters: [{ id, name: out.name, role: out.role, born: out.born ?? currentYear - 25, died: null, snapshots: snaps, body: out.body, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.characters] }));
         setView("chronicle"); setChronTab("characters"); setFocusId(id);
       } else if (kind === "event") {
         const out = await window.aiGenerateEvent(world, hint, currentYear, null);
         const id = uid("ev");
-        setWorld((w) => ({ ...w, events: [...w.events, { id, year: out.year || currentYear, title: out.title, body: out.body, placeId: out.placeId || null, participants: out.participants || [] }] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, events: [...w.events, { id, year: out.year || currentYear, title: out.title, body: out.body, placeId: out.placeId || null, participants: out.participants || [], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
         setView("chronicle"); setChronTab("events"); setFocusId(id);
       } else if (kind === "story") {
         const out = await window.aiContinueStory(world, currentYear, focusId, hint);
@@ -354,18 +379,29 @@ function MobileApp() {
   // ── Render the active view ───────────────────────────
   const renderActive = () => {
     if (folio === "library") return renderLibrary();
-    if (view === "map")       return <MobileMap world={world} currentYear={currentYear} layers={layers}
+    if (view === "map")       return <MobileMap world={scopedWorld} currentYear={currentYear} layers={layers}
                                                 setLayers={setLayers}
                                                 selectedRegionId={selectedRegionId}
                                                 onSelectRegion={onSelectRegion}
                                                 focusId={focusId} onFocus={onMapFocus}
-                                                onYear={setCurrentYear} />;
-    if (view === "chronicle") return <MobileChronicle world={world} currentYear={currentYear}
+                                                onYear={setCurrentYear}
+                                                sourceIndex={sourceIndex}
+                                                sourceScope={sourceScope}
+                                                sourceRange={sourceRange}
+                                                setSourceRange={setSourceRange}
+                                                counts={counts}
+                                                totalCounts={totalCounts} />;
+    if (view === "chronicle") return <MobileChronicle world={scopedWorld} currentYear={currentYear}
                                                       onYear={setCurrentYear} tab={chronTab}
                                                       onTab={setChronTab} counts={counts}
                                                       focusId={focusId} onFocus={setFocusId}
                                                       onAddBlankEvent={addBlankEvent}
-                                                      onAddBlankChar={addBlankChar} />;
+                                                      onAddBlankChar={addBlankChar}
+                                                      sourceIndex={sourceIndex}
+                                                      sourceScope={sourceScope}
+                                                      sourceRange={sourceRange}
+                                                      setSourceRange={setSourceRange}
+                                                      totalCounts={totalCounts} />;
     if (view === "codex")     return <MobileCodex world={world} currentYear={currentYear}
                                                   focusId={focusId} onFocus={setFocusId}
                                                   onJump={onChronJump} />;
@@ -520,7 +556,46 @@ function MobileStoryBar({
   );
 }
 
-function MobileMap({ world, currentYear, layers, setLayers, selectedRegionId, onSelectRegion, focusId, onFocus, onYear }) {
+function MobileSourceScope({ className = "", sourceIndex, sourceScope, value, counts, totalCounts, onChange }) {
+  const chapters = sourceIndex.chapters || [];
+  const disabled = chapters.length === 0;
+  const enabled = !!value.enabled && !disabled;
+  const startKey = sourceScope.startKey || chapters[0]?.key || "";
+  const endKey = sourceScope.endKey || chapters[chapters.length - 1]?.key || "";
+  const visibleTotal = counts.events + counts.characters + counts.orgs + counts.countries;
+  const fullTotal = totalCounts.events + totalCounts.characters + totalCounts.orgs + totalCounts.countries;
+  const setEnabled = (nextEnabled) => {
+    onChange((prev) => ({
+      ...prev,
+      enabled: nextEnabled,
+      startKey: prev.startKey || chapters[0]?.key || "",
+      endKey: prev.endKey || chapters[chapters.length - 1]?.key || ""
+    }));
+  };
+
+  return (
+    <div className={`mob-source-scope ${className} ${enabled ? "is-on" : ""}`}>
+      <button className="mob-source-mode" disabled={disabled} onClick={() => setEnabled(!enabled)}>
+        {enabled ? "Source range" : "All sources"}
+      </button>
+      <div className="mob-source-selects">
+        <select disabled={!enabled} value={startKey}
+                onChange={(event) => onChange((prev) => ({ ...prev, enabled: true, startKey: event.target.value }))}>
+          {chapters.map((ref) => <option key={ref.key} value={ref.key}>{AVN.compactSourceLabel(ref)} - {ref.chapterTitle}</option>)}
+        </select>
+        <select disabled={!enabled} value={endKey}
+                onChange={(event) => onChange((prev) => ({ ...prev, enabled: true, endKey: event.target.value }))}>
+          {chapters.map((ref) => <option key={ref.key} value={ref.key}>{AVN.compactSourceLabel(ref)} - {ref.chapterTitle}</option>)}
+        </select>
+      </div>
+      <div className="mob-source-meta">
+        {disabled ? "No chapter sources" : `${enabled ? sourceScope.label : "entire canon"} / ${visibleTotal} of ${fullTotal}`}
+      </div>
+    </div>
+  );
+}
+
+function MobileMap({ world, currentYear, layers, setLayers, selectedRegionId, onSelectRegion, focusId, onFocus, onYear, sourceIndex, sourceScope, sourceRange, setSourceRange, counts, totalCounts }) {
   const railRef = useRef(null);
 
   // World year domain
@@ -567,6 +642,15 @@ function MobileMap({ world, currentYear, layers, setLayers, selectedRegionId, on
         />
       )}
       <div className="mob-map-vignette" />
+      <MobileSourceScope
+        className="on-map"
+        sourceIndex={sourceIndex}
+        sourceScope={sourceScope}
+        value={sourceRange}
+        counts={counts}
+        totalCounts={totalCounts}
+        onChange={setSourceRange}
+      />
       <div className="mob-cornermark">drawn by hand · folio of the reach</div>
 
       {/* Layer chips */}
@@ -614,7 +698,7 @@ function MobileMap({ world, currentYear, layers, setLayers, selectedRegionId, on
 // ─────────────────────────────────────────────────────────────
 // MobileChronicle — year strip + tabs + list of entries
 // ─────────────────────────────────────────────────────────────
-function MobileChronicle({ world, currentYear, onYear, tab, onTab, counts, focusId, onFocus, onAddBlankEvent, onAddBlankChar }) {
+function MobileChronicle({ world, currentYear, onYear, tab, onTab, counts, focusId, onFocus, onAddBlankEvent, onAddBlankChar, sourceIndex, sourceScope, sourceRange, setSourceRange, totalCounts }) {
   // Build a year strip: era boundaries + every 50/100 yr tick
   const years = useMemo(() => {
     const out = [];
@@ -651,6 +735,15 @@ function MobileChronicle({ world, currentYear, onYear, tab, onTab, counts, focus
           <div className="mob-chron-y-meta">{era?.name || "—"}</div>
         </div>
 
+        <MobileSourceScope
+          sourceIndex={sourceIndex}
+          sourceScope={sourceScope}
+          value={sourceRange}
+          counts={counts}
+          totalCounts={totalCounts}
+          onChange={setSourceRange}
+        />
+
         <div className="mob-yearstrip">
           {years.map((y) => (
             <button key={y} className={`mob-year-chip ${y === currentYear ? "on" : ""}`} onClick={() => onYear(y)}>
@@ -683,6 +776,7 @@ function ChronicleList({ world, currentYear, tab, focusId, onFocus, onAddBlankEv
         )}
         {list.map((ev) => {
           const place = ev.placeId ? world.places.find((p) => p.id === ev.placeId)?.name : null;
+          const refs = AVN.sourceRefsForEntity(world, ev.id);
           return (
             <button key={ev.id} className={`mob-chron-row ${focusId === ev.id ? "is-focus" : ""}`}
                     style={{ "--accent": "#c89859" }}
@@ -692,6 +786,7 @@ function ChronicleList({ world, currentYear, tab, focusId, onFocus, onAddBlankEv
                 <span className="mob-chron-row-title">{ev.title}</span>
                 <span className="mob-chron-row-meta">
                   <b>{AVN.yearLabel(ev.year)}</b>
+                  {refs[0] ? <span> / {AVN.compactSourceLabel(refs[0])}</span> : null}
                   {place ? <span>· {place}</span> : null}
                 </span>
                 {ev.body && <span className="mob-chron-row-blurb">{ev.body}</span>}
@@ -715,6 +810,7 @@ function ChronicleList({ world, currentYear, tab, focusId, onFocus, onAddBlankEv
           (e.dissolved && currentYear > e.dissolved ? "dissolved" :
            (e.founded != null && currentYear < e.founded ? "not yet founded" : ""));
         const place = snap?.location?.name || snap?.hq?.name || snap?.capital?.name;
+        const refs = AVN.sourceRefsForEntity(world, e.id);
         return (
           <button key={e.id}
                   className={`mob-chron-row ${focusId === e.id ? "is-focus" : ""} ${alive ? "" : "muted"}`}
@@ -725,6 +821,7 @@ function ChronicleList({ world, currentYear, tab, focusId, onFocus, onAddBlankEv
               <span className="mob-chron-row-title">{e.name}</span>
               <span className="mob-chron-row-meta">
                 {role && <span>{role}</span>}
+                {refs[0] && <span> / {AVN.compactSourceLabel(refs[0])}</span>}
                 {(e.born ?? e.founded) != null && (
                   <span>· {AVN.yearLabel(e.born ?? e.founded)}{e.died != null || e.dissolved != null ? `–${AVN.yearLabel(e.died ?? e.dissolved)}` : ""}</span>
                 )}

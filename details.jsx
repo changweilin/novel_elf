@@ -1,6 +1,17 @@
 // Entity detail panels — render header + snapshot list + relationships for one focused entity.
 
-const EventDetail = ({ ev, world, onUpdate, onDelete, onJump, onFocus, currentYear }) => (
+const SourceBadges = ({ refs }) => (
+  <div className="source-badges">
+    <span className="source-badges-label">Source</span>
+    {refs && refs.length ? refs.map((ref) => (
+      <span key={ref.key || ref.chapterId || ref.label} className="source-badge" title={AVN.sourceLabel(ref)}>
+        {AVN.compactSourceLabel(ref)}
+      </span>
+    )) : <span className="source-badge empty">unbound</span>}
+  </div>
+);
+
+const EventDetail = ({ ev, world, onUpdate, onDelete, onJump, onFocus, currentYear, sourceRefs }) => (
   <div className="detail">
     <div className="detail-head">
       <Editable className="detail-year" value={ev.year} asNumber onChange={(v) => onUpdate({ year: v ?? ev.year })} />
@@ -16,6 +27,7 @@ const EventDetail = ({ ev, world, onUpdate, onDelete, onJump, onFocus, currentYe
                 }} placeholder="a place" />
       <button className="ai-btn small" onClick={() => onJump(ev.year)}>jump</button>
     </div>
+    <SourceBadges refs={sourceRefs} />
     <Editable className="detail-body" multiline value={ev.body || ""}
               onChange={(v) => onUpdate({ body: v })}
               placeholder="What happened. Who saw it. What it cost." />
@@ -54,7 +66,7 @@ const PartAdder = ({ world, onAdd }) => {
   );
 };
 
-const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill }) => {
+const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, sourceRefs }) => {
   return (
     <div className="detail">
       <div className="detail-head">
@@ -62,6 +74,7 @@ const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus
         <button className="ai-btn danger small" onClick={onDelete}>forget</button>
       </div>
       <Editable className="detail-role" value={c.role || ""} onChange={(v) => onUpdate({ role: v })} placeholder="their station" />
+      <SourceBadges refs={sourceRefs} />
       <div className="detail-meta">
         <span>born</span>
         <Editable className="detail-num" asNumber value={c.born} onChange={(v) => onUpdate({ born: v })} placeholder="?" />
@@ -82,7 +95,7 @@ const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus
   );
 };
 
-const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw }) => (
+const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw, sourceRefs }) => (
   <div className="detail">
     <div className="detail-head">
       <Editable className="detail-title" value={o.name} onChange={(v) => onUpdate({ name: v })} />
@@ -97,6 +110,7 @@ const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus,
       <button className="ai-btn small" onClick={() => onAIFill("organization", o.id)}>AI flesh out</button>
       <button className="ai-btn small primary" onClick={() => onDraw(o.id, "organizations")}>✎ draw domain @ {AVN.yearLabel(currentYear)}</button>
     </div>
+    <SourceBadges refs={sourceRefs} />
     <SnapList snaps={o.snapshots} accent={o.accent}
               fields={[
                 { key: "leader", label: "leader", placeholder: "who runs it now" },
@@ -111,7 +125,7 @@ const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus,
   </div>
 );
 
-const CountryDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw }) => (
+const CountryDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw, sourceRefs }) => (
   <div className="detail">
     <div className="detail-head">
       <Editable className="detail-title" value={c.name} onChange={(v) => onUpdate({ name: v })} />
@@ -126,6 +140,7 @@ const CountryDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFo
       <button className="ai-btn small" onClick={() => onAIFill("country", c.id)}>AI flesh out</button>
       <button className="ai-btn small primary" onClick={() => onDraw(c.id, "countries")}>✎ draw borders @ {AVN.yearLabel(currentYear)}</button>
     </div>
+    <SourceBadges refs={sourceRefs} />
     <SnapList snaps={c.snapshots} accent={c.accent}
               fields={[
                 { key: "leader", label: "ruler", placeholder: "who sits the throne" },

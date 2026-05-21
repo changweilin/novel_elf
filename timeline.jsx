@@ -6,6 +6,11 @@ const Timeline = ({ world, currentYear, onScrub, focusId, onFocus, windowSize, o
   const railRef = React.useRef(null);
   const [hover, setHover] = React.useState(null);
   const V = !!vertical;
+  const sourceIndex = React.useMemo(() => AVN.buildSourceIndex(world), [world.library]);
+  const sourceLabelFor = (id) => {
+    const ref = AVN.sourceRefsForEntity(world, id, sourceIndex)[0];
+    return ref ? AVN.compactSourceLabel(ref) : "";
+  };
 
   const segs = React.useMemo(() => {
     const total = world.eras.reduce((s, e) => s + (e.end - e.start) * e.compressed, 0);
@@ -67,6 +72,7 @@ const Timeline = ({ world, currentYear, onScrub, focusId, onFocus, windowSize, o
         <button className="lane-label" onClick={() => onFocus(ent.id)} title={ent.name || ent.title}>
           <span className="lane-swatch" style={{ background: accent }} />
           <span className="lane-name">{ent.name || ent.title}</span>
+          {sourceLabelFor(ent.id) && <span className="lane-source">{sourceLabelFor(ent.id)}</span>}
         </button>
         <div className="lane-track">
           <div className="lane-bar" style={{
@@ -127,7 +133,7 @@ const Timeline = ({ world, currentYear, onScrub, focusId, onFocus, windowSize, o
               return (
                 <button key={ev.id}
                         className={`tl-event ${focusId === ev.id ? "is-focus" : ""} ${visible ? "is-vis" : ""}`}
-                        style={at(t)} title={`${AVN.yearLabel(ev.year)} — ${ev.title}`}
+                        style={at(t)} title={`${AVN.yearLabel(ev.year)} - ${ev.title}${sourceLabelFor(ev.id) ? " / " + sourceLabelFor(ev.id) : ""}`}
                         onClick={(e) => { e.stopPropagation(); onFocus(ev.id); onScrub(ev.year); }}>
                   <span className="tl-event-dot" />
                 </button>

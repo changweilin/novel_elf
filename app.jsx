@@ -28,11 +28,16 @@ const App = () => {
   const [focusId, setFocusId] = useState(() => window.StoryStore.firstFocus(seedWorld));
   const [selectedRegionId, setSelectedRegionId] = useState(seedWorld.regions[0]?.id || null);
   const [layers, setLayers] = useState({ events: true, countries: true, orgs: true, characters: true, conflicts: true, eventsWindow: 200 });
+  const [sourceRange, setSourceRange] = useState({ enabled: false, startKey: "", endKey: "" });
   const [drawing, setDrawing] = useState(null); // { entityId, key:'countries'|'organizations', accent }
   const [story, setStory] = useState("");
   const [hint, setHint] = useState("");
   const [busy, setBusy] = useState(null);
   const [err, setErr] = useState(null);
+
+  const sourceIndex = useMemo(() => AVN.buildSourceIndex(world), [world.library]);
+  const sourceScope = useMemo(() => AVN.resolveSourceScope(sourceIndex, sourceRange), [sourceIndex, sourceRange]);
+  const scopedWorld = useMemo(() => AVN.filterWorldBySourceScope(world, sourceScope, sourceIndex), [world, sourceScope, sourceIndex]);
 
   useEffect(() => {
     let alive = true;
@@ -101,6 +106,7 @@ const App = () => {
     setFocusId(window.StoryStore.firstFocus(nextWorld));
     setSelectedRegionId(nextWorld.regions[0]?.id || null);
     setDrawing(null);
+    setSourceRange({ enabled: false, startKey: "", endKey: "" });
     setStory("");
     setHint("");
     setErr(null);
@@ -234,6 +240,11 @@ const App = () => {
     else if (k === "country") setTab("countries");
   }, [focusId]);
 
+  useEffect(() => {
+    if (!sourceScope.enabled || !focusId) return;
+    if (!AVN.findEntity(scopedWorld, focusId)) setFocusId(null);
+  }, [sourceScope.enabled, sourceScope.startKey, sourceScope.endKey, scopedWorld, focusId]);
+
   // ── Drawing territories ─────────────────────────────
   const startDrawing = (entityId, key) => {
     const ent = (world[key] || []).find((e) => e.id === entityId);
@@ -295,30 +306,44 @@ const App = () => {
     const other = candidates[0];
     if (!other) return;
     const id = uid("rl");
-    setWorld((w) => ({ ...w, relationships: [...(w.relationships || []), { id, a: entityId, b: other.id, kind: "ally", since: currentYear, until: null, note: "" }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, relationships: [...(w.relationships || []), { id, a: entityId, b: other.id, kind: "ally", since: currentYear, until: null, note: "", ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
   };
   const updateRel = (id, patch) => setWorld((w) => ({ ...w, relationships: (w.relationships || []).map((r) => r.id === id ? { ...r, ...patch } : r) }));
   const deleteRel = (id) => setWorld((w) => ({ ...w, relationships: (w.relationships || []).filter((r) => r.id !== id) }));
 
+  const sourceRefsForNewRecord = () => {
+    const ref = sourceScope.enabled ? AVN.minimalSourceRef(sourceScope.end) : null;
+    return ref ? [ref] : [];
+  };
+  const withCurrentSourceRef = (record) => {
+    const sourceRefs = sourceRefsForNewRecord();
+    return sourceRefs.length ? { ...record, sourceRefs } : record;
+  };
+
   // ── Add blanks ──────────────────────────────────────
   const addBlankEvent = () => {
     const id = uid("ev");
-    setWorld((w) => ({ ...w, events: [...w.events, { id, year: currentYear, title: "An unnamed happening", body: "", placeId: null, participants: [] }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, events: [...w.events, { id, year: currentYear, title: "An unnamed happening", body: "", placeId: null, participants: [], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
     setFocusId(id); setTab("events");
   };
   const addBlankChar = () => {
     const id = uid("ch");
-    setWorld((w) => ({ ...w, characters: [...w.characters, { id, name: "Someone unnamed", role: "of the Reach", born: currentYear - 25, died: null, originRegionId: selectedRegionId, snapshots: [{ year: currentYear, location: { x: 500, y: 340, name: "" }, status: "alive", body: "" }] }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, characters: [...w.characters, { id, name: "Someone unnamed", role: "of the Reach", born: currentYear - 25, died: null, originRegionId: selectedRegionId, snapshots: [{ year: currentYear, location: { x: 500, y: 340, name: "" }, status: "alive", body: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
     setFocusId(id); setTab("characters");
   };
   const addBlankOrg = () => {
     const id = uid("or");
-    setWorld((w) => ({ ...w, organizations: [...w.organizations, { id, name: "An unnamed order", accent: "#c89859", founded: currentYear, dissolved: null, snapshots: [{ year: currentYear, hq: { x: 500, y: 340, name: "" }, leader: "", members: 1, body: "" }] }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, organizations: [...w.organizations, { id, name: "An unnamed order", accent: "#c89859", founded: currentYear, dissolved: null, snapshots: [{ year: currentYear, hq: { x: 500, y: 340, name: "" }, leader: "", members: 1, body: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
     setFocusId(id); setTab("orgs");
   };
   const addBlankCountry = () => {
     const id = uid("co");
-    setWorld((w) => ({ ...w, countries: [...w.countries, { id, name: "An unnamed realm", accent: "#5a7a3a", founded: currentYear, dissolved: null, snapshots: [{ year: currentYear, capital: { x: 500, y: 340, name: "" }, leader: "", body: "", territory: "" }] }] }));
+    const sourceRefs = sourceRefsForNewRecord();
+    setWorld((w) => ({ ...w, countries: [...w.countries, { id, name: "An unnamed realm", accent: "#5a7a3a", founded: currentYear, dissolved: null, snapshots: [{ year: currentYear, capital: { x: 500, y: 340, name: "" }, leader: "", body: "", territory: "" }], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
     setFocusId(id); setTab("countries");
   };
 
@@ -342,24 +367,28 @@ const App = () => {
         const out = await window.aiGenerateCharacter(world, hint, currentYear);
         const id = uid("ch");
         const snaps = (out.snapshots || []).map((s) => ({ year: s.year, status: s.status, body: s.body, location: expandPlace(s.place) }));
-        setWorld((w) => ({ ...w, characters: [{ id, name: out.name, role: out.role, born: out.born ?? currentYear - 25, died: null, snapshots: snaps, body: out.body }, ...w.characters] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, characters: [{ id, name: out.name, role: out.role, born: out.born ?? currentYear - 25, died: null, snapshots: snaps, body: out.body, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.characters] }));
         setFocusId(id); setTab("characters");
       } else if (kind === "event") {
         const out = await window.aiGenerateEvent(world, hint, currentYear, placeIdForCurrent());
         const id = uid("ev");
-        setWorld((w) => ({ ...w, events: [...w.events, { id, year: out.year || currentYear, title: out.title, body: out.body, placeId: out.placeId || placeIdForCurrent(), participants: out.participants || [] }] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, events: [...w.events, { id, year: out.year || currentYear, title: out.title, body: out.body, placeId: out.placeId || placeIdForCurrent(), participants: out.participants || [], ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
         setFocusId(id); setTab("events");
       } else if (kind === "org") {
         const out = await window.aiGenerateOrg(world, hint, currentYear);
         const id = uid("or");
         const snaps = (out.snapshots || []).map((s) => ({ year: s.year, leader: s.leader, members: s.members, body: s.body, hq: expandPlace(s.hq), territory: "" }));
-        setWorld((w) => ({ ...w, organizations: [{ id, name: out.name, accent: out.accent || "#c89859", founded: out.founded ?? currentYear, dissolved: out.dissolved ?? null, snapshots: snaps }, ...w.organizations] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, organizations: [{ id, name: out.name, accent: out.accent || "#c89859", founded: out.founded ?? currentYear, dissolved: out.dissolved ?? null, snapshots: snaps, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.organizations] }));
         setFocusId(id); setTab("orgs");
       } else if (kind === "country") {
         const out = await window.aiGenerateCountry(world, hint, currentYear);
         const id = uid("co");
         const snaps = (out.snapshots || []).map((s) => ({ year: s.year, leader: s.leader, body: s.body, capital: expandPlace(s.capital), territory: "" }));
-        setWorld((w) => ({ ...w, countries: [{ id, name: out.name, accent: out.accent || "#5a7a3a", founded: out.founded ?? currentYear, dissolved: out.dissolved ?? null, snapshots: snaps }, ...w.countries] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, countries: [{ id, name: out.name, accent: out.accent || "#5a7a3a", founded: out.founded ?? currentYear, dissolved: out.dissolved ?? null, snapshots: snaps, ...(sourceRefs.length ? { sourceRefs } : {}) }, ...w.countries] }));
         setFocusId(id); setTab("countries");
       } else if (kind === "story") {
         const out = await window.aiContinueStory(world, currentYear, focusId, hint);
@@ -379,9 +408,11 @@ const App = () => {
       // snapshot
       if (out.snapshot) {
         const s = out.snapshot;
+        const sourceRefs = sourceRefsForNewRecord();
         const expanded = {
           year: s.year || currentYear,
-          leader: s.leader, members: s.members, status: s.status, body: s.body, territory: s.territory || ""
+          leader: s.leader, members: s.members, status: s.status, body: s.body, territory: s.territory || "",
+          ...(sourceRefs.length ? { sourceRefs } : {})
         };
         if (kind === "character") expanded.location = expandPlace(s.place || s.location?.name);
         if (kind === "organization") expanded.hq = expandPlace(s.hq || s.location?.name);
@@ -392,7 +423,8 @@ const App = () => {
       if (out.relationship && out.relationship.targetId) {
         const r = out.relationship;
         const rid = uid("rl");
-        setWorld((w) => ({ ...w, relationships: [...w.relationships, { id: rid, a: id, b: r.targetId, kind: r.kind || "ally", since: r.since || currentYear, until: null, note: r.note || "" }] }));
+        const sourceRefs = sourceRefsForNewRecord();
+        setWorld((w) => ({ ...w, relationships: [...w.relationships, { id: rid, a: id, b: r.targetId, kind: r.kind || "ally", since: r.since || currentYear, until: null, note: r.note || "", ...(sourceRefs.length ? { sourceRefs } : {}) }] }));
       }
     } catch (e) { setErr(String(e.message || e)); }
     setBusy(null);
@@ -407,22 +439,29 @@ const App = () => {
   };
 
   // ── Render helpers ──────────────────────────────────
-  const counts = {
+  const totalCounts = {
     events: world.events.length,
     characters: world.characters.length,
     orgs: world.organizations.length,
     countries: world.countries.length
+  };
+  const counts = {
+    events: scopedWorld.events.length,
+    characters: scopedWorld.characters.length,
+    orgs: scopedWorld.organizations.length,
+    countries: scopedWorld.countries.length
   };
   const onJump = (y) => setCurrentYear(y);
 
   const renderDetail = () => {
     if (!focusId) return null;
     const kind = AVN.entityKind(world, focusId);
+    const sourceRefs = AVN.sourceRefsForEntity(world, focusId, sourceIndex);
     if (kind === "event") {
       const ev = world.events.find((e) => e.id === focusId);
       return <EventDetail ev={ev} world={world} currentYear={currentYear}
                           onUpdate={(p) => updateEvent(ev.id, p)} onDelete={() => deleteEvent(ev.id)}
-                          onJump={onJump} onFocus={setFocusId} />;
+                          onJump={onJump} onFocus={setFocusId} sourceRefs={sourceRefs} />;
     }
     if (kind === "character") {
       const c = world.characters.find((e) => e.id === focusId);
@@ -430,9 +469,9 @@ const App = () => {
       return <CharDetail c={c} world={world} currentYear={currentYear}
                          onUpdate={(p) => updateChar(c.id, p)} onDelete={() => deleteChar(c.id)}
                          onJump={onJump} onFocus={setFocusId}
-                         onAddSnap={(s) => sm.add(c.id, s)} onUpdateSnap={sm.update(c.id)} onDeleteSnap={sm.del(c.id)}
+                         onAddSnap={(s) => sm.add(c.id, withCurrentSourceRef(s))} onUpdateSnap={sm.update(c.id)} onDeleteSnap={sm.del(c.id)}
                          onAddRel={addRel} onUpdateRel={updateRel} onDeleteRel={deleteRel}
-                         onAIFill={onAIFill} />;
+                         onAIFill={onAIFill} sourceRefs={sourceRefs} />;
     }
     if (kind === "organization") {
       const o = world.organizations.find((e) => e.id === focusId);
@@ -440,9 +479,9 @@ const App = () => {
       return <OrgDetail o={o} world={world} currentYear={currentYear}
                         onUpdate={(p) => updateOrg(o.id, p)} onDelete={() => deleteOrg(o.id)}
                         onJump={onJump} onFocus={setFocusId}
-                        onAddSnap={(s) => sm.add(o.id, s)} onUpdateSnap={sm.update(o.id)} onDeleteSnap={sm.del(o.id)}
+                        onAddSnap={(s) => sm.add(o.id, withCurrentSourceRef(s))} onUpdateSnap={sm.update(o.id)} onDeleteSnap={sm.del(o.id)}
                         onAddRel={addRel} onUpdateRel={updateRel} onDeleteRel={deleteRel}
-                        onAIFill={onAIFill} onDraw={startDrawing} />;
+                        onAIFill={onAIFill} onDraw={startDrawing} sourceRefs={sourceRefs} />;
     }
     if (kind === "country") {
       const c = world.countries.find((e) => e.id === focusId);
@@ -450,37 +489,43 @@ const App = () => {
       return <CountryDetail c={c} world={world} currentYear={currentYear}
                             onUpdate={(p) => updateCountry(c.id, p)} onDelete={() => deleteCountry(c.id)}
                             onJump={onJump} onFocus={setFocusId}
-                            onAddSnap={(s) => sm.add(c.id, s)} onUpdateSnap={sm.update(c.id)} onDeleteSnap={sm.del(c.id)}
+                            onAddSnap={(s) => sm.add(c.id, withCurrentSourceRef(s))} onUpdateSnap={sm.update(c.id)} onDeleteSnap={sm.del(c.id)}
                             onAddRel={addRel} onUpdateRel={updateRel} onDeleteRel={deleteRel}
-                            onAIFill={onAIFill} onDraw={startDrawing} />;
+                            onAIFill={onAIFill} onDraw={startDrawing} sourceRefs={sourceRefs} />;
     }
     return null;
   };
 
   const renderList = () => {
     if (tab === "events") {
-      const inView = world.events.filter((ev) => Math.abs(ev.year - currentYear) <= windowSize / 2).sort((a, b) => a.year - b.year);
+      const inView = scopedWorld.events.filter((ev) => Math.abs(ev.year - currentYear) <= windowSize / 2).sort((a, b) => a.year - b.year);
       return (
         <div className="list">
           {inView.length === 0 && <div className="ai-status">— widen the lens, or scrub the rail —</div>}
-          {inView.map((ev) => (
-            <button key={ev.id} className={`list-row ${focusId === ev.id ? "active" : ""}`} onClick={() => setFocusId(ev.id)}>
-              <span className="row-year">{AVN.yearLabel(ev.year)}</span>
-              <span className="row-title">{ev.title}</span>
-            </button>
-          ))}
+          {inView.map((ev) => {
+            const refs = AVN.sourceRefsForEntity(world, ev.id, sourceIndex);
+            return (
+              <button key={ev.id} className={`list-row ${focusId === ev.id ? "active" : ""}`} onClick={() => setFocusId(ev.id)}>
+                <span className="row-year">{AVN.yearLabel(ev.year)}</span>
+                <span className="row-title">{ev.title}</span>
+                <span className="row-source">{refs[0] ? AVN.compactSourceLabel(refs[0]) : "unbound"}</span>
+              </button>
+            );
+          })}
         </div>
       );
     }
-    const items = tab === "characters" ? world.characters : tab === "orgs" ? world.organizations : world.countries;
+    const items = tab === "characters" ? scopedWorld.characters : tab === "orgs" ? scopedWorld.organizations : scopedWorld.countries;
     return (
       <div className="list">
         {items.map((e) => {
           const alive = AVN.entityAlive(e, currentYear);
+          const refs = AVN.sourceRefsForEntity(world, e.id, sourceIndex);
           return (
             <button key={e.id} className={`list-row ${focusId === e.id ? "active" : ""} ${alive ? "" : "muted"}`} onClick={() => setFocusId(e.id)}>
               <span className="row-swatch" style={{ background: e.accent || "#a89472" }} />
               <span className="row-title">{e.name}</span>
+              <span className="row-source">{refs[0] ? AVN.compactSourceLabel(refs[0]) : "unbound"}</span>
               <span className="row-year">{(e.born ?? e.founded) != null ? AVN.yearLabel(e.born ?? e.founded) : "—"}</span>
             </button>
           );
@@ -630,8 +675,17 @@ const App = () => {
           </div>
         </div>
 
+        <SourceScopeControl
+          sourceIndex={sourceIndex}
+          sourceScope={sourceScope}
+          value={sourceRange}
+          counts={counts}
+          totalCounts={totalCounts}
+          onChange={setSourceRange}
+        />
+
         <div className="map-frame">
-          <WorldMap world={world} currentYear={currentYear} layers={{ ...layers, eventsWindow: windowSize }}
+          <WorldMap world={scopedWorld} currentYear={currentYear} layers={{ ...layers, eventsWindow: windowSize }}
                     selectedRegionId={selectedRegionId} onSelectRegion={setSelectedRegionId}
                     focusId={focusId} onFocus={(id) => id != null && setFocusId(id)}
                     drawing={drawing} onCommitDraw={commitDrawing} onCancelDraw={cancelDrawing} />
@@ -648,7 +702,7 @@ const App = () => {
           )}
         </div>
 
-        <Timeline world={world} currentYear={currentYear} onScrub={setCurrentYear}
+        <Timeline world={scopedWorld} currentYear={currentYear} onScrub={setCurrentYear}
                   focusId={focusId} onFocus={setFocusId}
                   windowSize={windowSize} onWindowSize={setWindowSize}
                   lanes={layers} onToggleLane={(k) => setLayers((L) => ({ ...L, [k]: !L[k] }))}
@@ -680,6 +734,66 @@ const App = () => {
     </div>
   );
 };
+
+function SourceScopeControl({ sourceIndex, sourceScope, value, counts, totalCounts, onChange }) {
+  const chapters = sourceIndex.chapters || [];
+  const disabled = chapters.length === 0;
+  const enabled = !!value.enabled && !disabled;
+  const startKey = sourceScope.startKey || chapters[0]?.key || "";
+  const endKey = sourceScope.endKey || chapters[chapters.length - 1]?.key || "";
+  const visibleTotal = counts.events + counts.characters + counts.orgs + counts.countries;
+  const fullTotal = totalCounts.events + totalCounts.characters + totalCounts.orgs + totalCounts.countries;
+
+  const setEnabled = (nextEnabled) => {
+    onChange((prev) => ({
+      ...prev,
+      enabled: nextEnabled,
+      startKey: prev.startKey || chapters[0]?.key || "",
+      endKey: prev.endKey || chapters[chapters.length - 1]?.key || ""
+    }));
+  };
+
+  const optionLabel = (ref) => `${AVN.compactSourceLabel(ref)} - ${ref.chapterTitle}`;
+
+  return (
+    <div className={`source-scope ${enabled ? "is-on" : ""}`}>
+      <div className="source-scope-main">
+        <button
+          className={`source-mode ${enabled ? "on" : ""}`}
+          disabled={disabled}
+          onClick={() => setEnabled(!enabled)}
+        >
+          {enabled ? "Source range" : "All sources"}
+        </button>
+        <div className="source-range">
+          <label>
+            <span>from</span>
+            <select
+              disabled={!enabled}
+              value={startKey}
+              onChange={(event) => onChange((prev) => ({ ...prev, enabled: true, startKey: event.target.value }))}
+            >
+              {chapters.map((ref) => <option key={ref.key} value={ref.key}>{optionLabel(ref)}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>to</span>
+            <select
+              disabled={!enabled}
+              value={endKey}
+              onChange={(event) => onChange((prev) => ({ ...prev, enabled: true, endKey: event.target.value }))}
+            >
+              {chapters.map((ref) => <option key={ref.key} value={ref.key}>{optionLabel(ref)}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+      <div className="source-scope-meta">
+        {disabled ? "No chapter sources yet" : `${enabled ? sourceScope.label : "entire canon"} / ${visibleTotal} of ${fullTotal} records`}
+      </div>
+    </div>
+  );
+}
 
 function StoryWorkspaceBar({
   stories,
