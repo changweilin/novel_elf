@@ -8,6 +8,7 @@
     "dev:local": "node dev-server.mjs --host 127.0.0.1 --port 8789 --stories-root .local/stories",
     "dev:demo": "node dev-server.mjs --host 127.0.0.1 --port 8789 --stories-root stories",
     "dev:demo:lan": "node dev-server.mjs --host 0.0.0.0 --port 8789 --stories-root stories",
+    "build:pages": "node scripts/build-pages.mjs",
     "test": "node --test story-md.test.mjs story-api.test.mjs story-import.test.mjs viewport-router.test.mjs ui-surface.test.mjs i18n-surface.test.mjs",
     "test:router": "node --test viewport-router.test.mjs",
     "test:ui": "node --test ui-surface.test.mjs",

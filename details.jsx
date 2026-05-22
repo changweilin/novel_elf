@@ -11,12 +11,19 @@ const SourceBadges = ({ refs }) => (
   </div>
 );
 
-const EventDetail = ({ ev, world, onUpdate, onDelete, onJump, onFocus, currentYear, sourceRefs }) => (
+function detailReadOnly(readOnly) {
+  const runtime = window.NovelElfRuntime || {};
+  return readOnly || runtime.readOnly === true || runtime.publicDemo === true;
+}
+
+const EventDetail = ({ ev, world, onUpdate, onDelete, onJump, onFocus, currentYear, sourceRefs, readOnly }) => {
+  const locked = detailReadOnly(readOnly);
+  return (
   <div className="detail">
     <div className="detail-head">
       <Editable className="detail-year" value={ev.year} asNumber onChange={(v) => onUpdate({ year: v ?? ev.year })} />
       <Editable className="detail-title" value={ev.title} onChange={(v) => onUpdate({ title: v })} />
-      <button className="ai-btn danger small" onClick={onDelete}>strike</button>
+      {!locked && <button className="ai-btn danger small" onClick={onDelete}>strike</button>}
     </div>
     <div className="detail-meta">
       <span>at</span>
@@ -37,16 +44,18 @@ const EventDetail = ({ ev, world, onUpdate, onDelete, onJump, onFocus, currentYe
         {(ev.participants || []).map((id) => (
           <button key={id} className="part-chip" onClick={() => onFocus(id)}>
             <span className="part-kind">{(AVN.entityKind(world, id) || "?")[0]}</span> {AVN.entityName(world, id)}
-            <span className="part-x" onClick={(e) => { e.stopPropagation(); onUpdate({ participants: ev.participants.filter((x) => x !== id) }); }}>×</span>
+            {!locked && <span className="part-x" onClick={(e) => { e.stopPropagation(); onUpdate({ participants: ev.participants.filter((x) => x !== id) }); }}>×</span>}
           </button>
         ))}
-        <PartAdder world={world} onAdd={(id) => onUpdate({ participants: [...(ev.participants || []), id] })} />
+        {!locked && <PartAdder world={world} onAdd={(id) => onUpdate({ participants: [...(ev.participants || []), id] })} />}
       </div>
     </div>
   </div>
-);
+  );
+};
 
 const PartAdder = ({ world, onAdd }) => {
+  if (detailReadOnly()) return null;
   const [q, setQ] = React.useState("");
   const all = [...world.characters, ...world.organizations, ...world.countries].filter((e) => e.name.toLowerCase().includes(q.toLowerCase())).slice(0, 6);
   return (
@@ -66,12 +75,13 @@ const PartAdder = ({ world, onAdd }) => {
   );
 };
 
-const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, sourceRefs }) => {
+const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, sourceRefs, readOnly, aiAvailable }) => {
+  const locked = detailReadOnly(readOnly);
   return (
     <div className="detail">
       <div className="detail-head">
         <Editable className="detail-title" value={c.name} onChange={(v) => onUpdate({ name: v })} />
-        <button className="ai-btn danger small" onClick={onDelete}>forget</button>
+        {!locked && <button className="ai-btn danger small" onClick={onDelete}>forget</button>}
       </div>
       <Editable className="detail-role" value={c.role || ""} onChange={(v) => onUpdate({ role: v })} placeholder="their station" />
       <SourceBadges refs={sourceRefs} />
@@ -80,7 +90,7 @@ const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus
         <Editable className="detail-num" asNumber value={c.born} onChange={(v) => onUpdate({ born: v })} placeholder="?" />
         <span>died</span>
         <Editable className="detail-num" asNumber value={c.died} onChange={(v) => onUpdate({ died: v })} placeholder="—" />
-        <button className="ai-btn small" onClick={() => onAIFill("character", c.id)}>AI flesh out</button>
+        {!locked && aiAvailable && <button className="ai-btn small" onClick={() => onAIFill("character", c.id)}>AI flesh out</button>}
       </div>
       <SnapList snaps={c.snapshots} accent="#a89472"
                 fields={[
@@ -95,20 +105,22 @@ const CharDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus
   );
 };
 
-const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw, sourceRefs }) => (
+const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw, sourceRefs, readOnly, aiAvailable }) => {
+  const locked = detailReadOnly(readOnly);
+  return (
   <div className="detail">
     <div className="detail-head">
       <Editable className="detail-title" value={o.name} onChange={(v) => onUpdate({ name: v })} />
-      <input type="color" value={o.accent || "#c89859"} onChange={(e) => onUpdate({ accent: e.target.value })} className="color-pick" />
-      <button className="ai-btn danger small" onClick={onDelete}>dissolve</button>
+      <input type="color" value={o.accent || "#c89859"} disabled={locked} onChange={(e) => onUpdate({ accent: e.target.value })} className="color-pick" />
+      {!locked && <button className="ai-btn danger small" onClick={onDelete}>dissolve</button>}
     </div>
     <div className="detail-meta">
       <span>founded</span>
       <Editable className="detail-num" asNumber value={o.founded} onChange={(v) => onUpdate({ founded: v })} placeholder="?" />
       <span>dissolved</span>
       <Editable className="detail-num" asNumber value={o.dissolved} onChange={(v) => onUpdate({ dissolved: v })} placeholder="—" />
-      <button className="ai-btn small" onClick={() => onAIFill("organization", o.id)}>AI flesh out</button>
-      <button className="ai-btn small primary" onClick={() => onDraw(o.id, "organizations")}>✎ draw domain @ {AVN.yearLabel(currentYear)}</button>
+      {!locked && aiAvailable && <button className="ai-btn small" onClick={() => onAIFill("organization", o.id)}>AI flesh out</button>}
+      {!locked && <button className="ai-btn small primary" onClick={() => onDraw(o.id, "organizations")}>✎ draw domain @ {AVN.yearLabel(currentYear)}</button>}
     </div>
     <SourceBadges refs={sourceRefs} />
     <SnapList snaps={o.snapshots} accent={o.accent}
@@ -123,22 +135,25 @@ const OrgDetail = ({ o, world, currentYear, onUpdate, onDelete, onJump, onFocus,
               onUpdate={onUpdateSnap} onDelete={onDeleteSnap} onJump={onJump} currentYear={currentYear} />
     <RelList world={world} entityId={o.id} onAdd={() => onAddRel(o.id)} onUpdate={onUpdateRel} onDelete={onDeleteRel} onFocus={onFocus} />
   </div>
-);
+  );
+};
 
-const CountryDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw, sourceRefs }) => (
+const CountryDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFocus, onAddSnap, onUpdateSnap, onDeleteSnap, onAddRel, onUpdateRel, onDeleteRel, onAIFill, onDraw, sourceRefs, readOnly, aiAvailable }) => {
+  const locked = detailReadOnly(readOnly);
+  return (
   <div className="detail">
     <div className="detail-head">
       <Editable className="detail-title" value={c.name} onChange={(v) => onUpdate({ name: v })} />
-      <input type="color" value={c.accent || "#3b7a4d"} onChange={(e) => onUpdate({ accent: e.target.value })} className="color-pick" />
-      <button className="ai-btn danger small" onClick={onDelete}>fall</button>
+      <input type="color" value={c.accent || "#3b7a4d"} disabled={locked} onChange={(e) => onUpdate({ accent: e.target.value })} className="color-pick" />
+      {!locked && <button className="ai-btn danger small" onClick={onDelete}>fall</button>}
     </div>
     <div className="detail-meta">
       <span>founded</span>
       <Editable className="detail-num" asNumber value={c.founded} onChange={(v) => onUpdate({ founded: v })} placeholder="?" />
       <span>fell</span>
       <Editable className="detail-num" asNumber value={c.dissolved} onChange={(v) => onUpdate({ dissolved: v })} placeholder="—" />
-      <button className="ai-btn small" onClick={() => onAIFill("country", c.id)}>AI flesh out</button>
-      <button className="ai-btn small primary" onClick={() => onDraw(c.id, "countries")}>✎ draw borders @ {AVN.yearLabel(currentYear)}</button>
+      {!locked && aiAvailable && <button className="ai-btn small" onClick={() => onAIFill("country", c.id)}>AI flesh out</button>}
+      {!locked && <button className="ai-btn small primary" onClick={() => onDraw(c.id, "countries")}>✎ draw borders @ {AVN.yearLabel(currentYear)}</button>}
     </div>
     <SourceBadges refs={sourceRefs} />
     <SnapList snaps={c.snapshots} accent={c.accent}
@@ -152,7 +167,8 @@ const CountryDetail = ({ c, world, currentYear, onUpdate, onDelete, onJump, onFo
               onUpdate={onUpdateSnap} onDelete={onDeleteSnap} onJump={onJump} currentYear={currentYear} />
     <RelList world={world} entityId={c.id} onAdd={() => onAddRel(c.id)} onUpdate={onUpdateRel} onDelete={onDeleteRel} onFocus={onFocus} />
   </div>
-);
+  );
+};
 
 window.EventDetail = EventDetail;
 window.CharDetail = CharDetail;

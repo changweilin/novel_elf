@@ -5,6 +5,29 @@
   const LEGACY_WORLD_KEY = "aevenmere.world.v2";
   const STATIC_STORIES_KEY = "novelElf.staticStories.v1";
 
+  function runtime() {
+    return window.NovelElfRuntime || {};
+  }
+
+  function isReadOnlyRuntime() {
+    const config = runtime();
+    return config.readOnly === true || config.publicDemo === true;
+  }
+
+  function canUseApiRuntime() {
+    return runtime().apiEnabled !== false && !isReadOnlyRuntime();
+  }
+
+  function canUseStorageRuntime() {
+    return runtime().storageEnabled !== false && !isReadOnlyRuntime();
+  }
+
+  function assertWritableRuntime() {
+    if (isReadOnlyRuntime()) {
+      throw new Error("Public demo is read-only. Run the local workspace to edit stories.");
+    }
+  }
+
   function clone(value) {
     return JSON.parse(JSON.stringify(value || null));
   }
@@ -49,6 +72,7 @@
       organizations: arr(source.organizations),
       characters: arr(source.characters),
       relationships: arr(source.relationships),
+      narrative: normalizeNarrative(source.narrative),
       library: normalizeLibrary(source.library)
     };
     return world;
@@ -76,11 +100,70 @@
     };
   }
 
+  function normalizeNarrative(narrative) {
+    const source = clone(narrative) || {};
+    const style = {
+      narration: "",
+      tense: "",
+      sentenceRhythm: "",
+      sensoryPriority: [],
+      metaphorRules: "",
+      avoid: [],
+      dialogue: "",
+      ...(source.style || {})
+    };
+    return {
+      ...source,
+      premise: source.premise || "",
+      themes: arr(source.themes),
+      storylines: arr(source.storylines).map((line, index) => ({
+        ...line,
+        id: line.id || `line_${index + 1}`,
+        name: line.name || line.id || `Storyline ${index + 1}`,
+        role: line.role || "supporting",
+        targetShare: normalizeShare(line.targetShare),
+        povIds: arr(line.povIds),
+        actShares: arr(line.actShares)
+      })),
+      characterArcs: arr(source.characterArcs).map((arc) => ({
+        ...arc,
+        characterId: arc.characterId || "",
+        want: arc.want || "",
+        need: arc.need || "",
+        lie: arc.lie || "",
+        arcStage: arc.arcStage || "",
+        nextRequiredBeat: arc.nextRequiredBeat || ""
+      })),
+      openLoops: arr(source.openLoops).map((loop, index) => ({
+        ...loop,
+        id: loop.id || `loop_${index + 1}`,
+        question: loop.question || "",
+        importance: loop.importance || "minor",
+        status: loop.status || "active"
+      })),
+      style: {
+        ...style,
+        sensoryPriority: arr(style.sensoryPriority),
+        avoid: arr(style.avoid)
+      }
+    };
+  }
+
+  function normalizeShare(value) {
+    const number = Number(value);
+    if (!Number.isFinite(number)) return 0;
+    return Math.max(0, Math.min(1, number));
+  }
+
   function arr(value) {
     return Array.isArray(value) ? value : [];
   }
 
   function readStaticRecords(seedWorld) {
+    if (!canUseStorageRuntime()) {
+      return [recordFromWorld(seedWorld)];
+    }
+
     let records = [];
     try {
       const raw = localStorage.getItem(STATIC_STORIES_KEY);
@@ -100,6 +183,7 @@
   }
 
   function writeStaticRecords(records) {
+    if (!canUseStorageRuntime()) return;
     try { localStorage.setItem(STATIC_STORIES_KEY, JSON.stringify(records)); } catch {}
   }
 
@@ -123,7 +207,9 @@
   function selectStaticRecord(seedWorld, id) {
     const records = readStaticRecords(seedWorld);
     let activeId = id;
-    try { activeId = activeId || localStorage.getItem(ACTIVE_KEY); } catch {}
+    if (canUseStorageRuntime()) {
+      try { activeId = activeId || localStorage.getItem(ACTIVE_KEY); } catch {}
+    }
     const record = records.find((item) => item.id === activeId) || records[0];
     saveActiveStoryId(record.id);
     return { records, record };
@@ -139,6 +225,7 @@
   }
 
   function createStaticStory({ title, subtitle, sourceId, world }) {
+    assertWritableRuntime();
     const seed = normalizeWorld(window.WORLD_SEED);
     const records = readStaticRecords(seed);
     const source = world
@@ -157,6 +244,7 @@
   }
 
   function renameStaticStory(id, patch) {
+    assertWritableRuntime();
     const seed = normalizeWorld(window.WORLD_SEED);
     const records = readStaticRecords(seed);
     const nextRecords = records.map((record) => {
@@ -184,6 +272,7 @@
   }
 
   function archiveStaticStory(id) {
+    assertWritableRuntime();
     const seed = normalizeWorld(window.WORLD_SEED);
     let records = readStaticRecords(seed).filter((record) => record.id !== id);
     if (!records.length) records = [recordFromWorld(normalizeWorld({ ...seed, storyId: "untitled-story", name: "Untitled Story" }))];
@@ -221,6 +310,10 @@
   }
 
   async function api(path, options) {
+    if (!canUseApiRuntime()) {
+      throw new Error("Local story API is disabled in the public demo.");
+    }
+
     const init = {
       ...options,
       headers: {
@@ -242,6 +335,16 @@
 
   async function loadInitial(seedWorld) {
     const seed = normalizeWorld(seedWorld);
+    if (!canUseApiRuntime()) {
+      const { records, record } = selectStaticRecord(seed);
+      return {
+        mode: runtime().publicDemo ? "demo" : "static",
+        stories: records.map((item) => item.story),
+        activeStory: record.story,
+        world: record.world
+      };
+    }
+
     try {
       const listed = await api("/api/stories");
       const stories = listed.stories || [];
@@ -268,7 +371,7 @@
   }
 
   async function loadStory(id, mode) {
-    if (mode === "static") {
+    if (mode !== "api") {
       const { record } = selectStaticRecord(window.WORLD_SEED, id);
       return { story: record.story, world: record.world };
     }
@@ -282,6 +385,15 @@
 
   async function saveWorld(id, world, mode) {
     const normalized = normalizeWorld(world);
+    if (isReadOnlyRuntime()) {
+      normalized.storyId = id || normalized.storyId;
+      return {
+        story: storyFromWorld(normalized),
+        world: normalized,
+        stories: [storyFromWorld(normalized)]
+      };
+    }
+
     if (mode !== "api") {
       try { localStorage.setItem(LEGACY_WORLD_KEY, JSON.stringify(normalized)); } catch {}
       normalized.storyId = id || normalized.storyId;
@@ -302,7 +414,8 @@
   }
 
   async function createStory({ title, subtitle, sourceId, world }, mode) {
-    if (mode === "static") return createStaticStory({ title, subtitle, sourceId, world });
+    assertWritableRuntime();
+    if (mode !== "api") return createStaticStory({ title, subtitle, sourceId, world });
     return api("/api/stories", {
       method: "POST",
       body: JSON.stringify({ title, subtitle, sourceId, world })
@@ -323,7 +436,8 @@
   }
 
   async function renameStory(id, patch, mode) {
-    if (mode === "static") return renameStaticStory(id, patch);
+    assertWritableRuntime();
+    if (mode !== "api") return renameStaticStory(id, patch);
     return api(`/api/stories/${encodeURIComponent(id)}`, {
       method: "PATCH",
       body: JSON.stringify(patch)
@@ -331,11 +445,13 @@
   }
 
   async function archiveStory(id, mode) {
-    if (mode === "static") return archiveStaticStory(id);
+    assertWritableRuntime();
+    if (mode !== "api") return archiveStaticStory(id);
     return api(`/api/stories/${encodeURIComponent(id)}`, { method: "DELETE" });
   }
 
   function loadLegacyWorld(seed) {
+    if (!canUseStorageRuntime()) return seed;
     try {
       const raw = localStorage.getItem(LEGACY_WORLD_KEY);
       if (raw) return normalizeWorld(JSON.parse(raw));
@@ -346,7 +462,9 @@
   function selectStory(stories) {
     if (!stories.length) throw new Error("No stories returned");
     let activeId = null;
-    try { activeId = localStorage.getItem(ACTIVE_KEY); } catch {}
+    if (canUseStorageRuntime()) {
+      try { activeId = localStorage.getItem(ACTIVE_KEY); } catch {}
+    }
     return stories.find((story) => story.id === activeId) || stories[0];
   }
 
@@ -361,6 +479,7 @@
   }
 
   function saveActiveStoryId(id) {
+    if (!canUseStorageRuntime()) return;
     try { localStorage.setItem(ACTIVE_KEY, id); } catch {}
   }
 
@@ -369,6 +488,7 @@
   }
 
   function getUi(storyId, name, fallback) {
+    if (!canUseStorageRuntime()) return fallback;
     try {
       const value = localStorage.getItem(uiKey(storyId, name));
       return value == null ? fallback : value;
@@ -378,6 +498,7 @@
   }
 
   function setUi(storyId, name, value) {
+    if (!canUseStorageRuntime()) return;
     try { localStorage.setItem(uiKey(storyId, name), String(value)); } catch {}
   }
 

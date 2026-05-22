@@ -245,6 +245,7 @@ export async function buildArticleContextPack(storyDir, articleId, options = {})
       adjacentChapters: detail.adjacentChapters
     }, 4200),
     packSection("article_body", detail.markdownBody, bodyBudgetFor(task)),
+    packSection("narrative_blueprint", narrativeContext(world, detail.frontmatter), 5200),
     packSection("chunks", detail.chunks, 5000),
     packSection("related_world", detail.relatedWorld, 4200),
     packSection("nearby_timeline", nearbyTimeline(world, detail.frontmatter.year), 4200),
@@ -445,6 +446,9 @@ function articleSummary({ id, kind, filePath, relPath, meta, body, bookId, bookT
     wordCount: countWords(body),
     year: finiteOrNull(meta.year ?? meta.defaultYear),
     status: meta.status || null,
+    storylineIds: Array.isArray(meta.storylineIds) ? meta.storylineIds : [],
+    sceneType: meta.sceneType || null,
+    tensionLevel: finiteOrNull(meta.tensionLevel),
     updatedAt,
     sourceRefs: Array.isArray(meta.sourceRefs) ? meta.sourceRefs : [],
     bookId,
@@ -461,6 +465,7 @@ function buildRelatedWorld(world, article, meta) {
   if (article.kind !== "chapter") {
     return {
       story: { id: world.storyId, name: world.name, defaultYear: world.defaultYear },
+      narrative: summarizeNarrativeForArticle(world, meta),
       era: null,
       place: null,
       focus: [],
@@ -486,6 +491,7 @@ function buildRelatedWorld(world, article, meta) {
 
   return {
     story: { id: world.storyId, name: world.name, defaultYear: world.defaultYear },
+    narrative: summarizeNarrativeForArticle(world, meta),
     era: era ? { id: era.id, name: era.name, start: era.start, end: era.end } : null,
     place: place ? { id: place.id, name: place.name, x: place.x, y: place.y } : null,
     focus,
@@ -516,6 +522,66 @@ function summarizeEntity(world, id, year) {
   }
 
   return null;
+}
+
+function summarizeNarrativeForArticle(world, meta = {}) {
+  const narrative = world.narrative || {};
+  const selectedIds = new Set(arrayOf(meta.storylineIds));
+  const activeStorylines = arrayOf(narrative.storylines).filter((line) => (
+    selectedIds.has(line.id) ||
+    (meta.povId && arrayOf(line.povIds).includes(meta.povId))
+  ));
+  const focusIds = new Set([meta.povId, ...arrayOf(meta.focusIds)].filter(Boolean));
+  const arcs = arrayOf(narrative.characterArcs).filter((arc) => focusIds.has(arc.characterId));
+  const promiseIds = new Set([...arrayOf(meta.promiseRaised), ...arrayOf(meta.promisePaid)]);
+  const loops = arrayOf(narrative.openLoops).filter((loop) => (
+    promiseIds.has(loop.id) || loop.status !== "closed"
+  ));
+
+  return {
+    premise: narrative.premise || "",
+    themes: arrayOf(narrative.themes),
+    storylines: (activeStorylines.length ? activeStorylines : arrayOf(narrative.storylines).slice(0, 4)).map((line) => ({
+      id: line.id,
+      name: line.name,
+      role: line.role || null,
+      targetShare: line.targetShare ?? null,
+      promise: line.promise || "",
+      currentPressure: line.currentPressure || ""
+    })),
+    characterArcs: arcs.map((arc) => ({
+      characterId: arc.characterId,
+      want: arc.want || "",
+      need: arc.need || "",
+      lie: arc.lie || "",
+      arcStage: arc.arcStage || "",
+      nextRequiredBeat: arc.nextRequiredBeat || ""
+    })),
+    openLoops: loops.slice(0, 8).map((loop) => ({
+      id: loop.id,
+      question: loop.question || "",
+      importance: loop.importance || "minor",
+      targetPayoff: loop.targetPayoff || "",
+      status: loop.status || "active"
+    })),
+    style: narrative.style || {}
+  };
+}
+
+function narrativeContext(world, meta = {}) {
+  const summary = summarizeNarrativeForArticle(world, meta);
+  return {
+    scene: {
+      storylineIds: arrayOf(meta.storylineIds),
+      sceneType: meta.sceneType || null,
+      narrativeFunction: meta.narrativeFunction || "",
+      tensionLevel: finiteOrNull(meta.tensionLevel),
+      promiseRaised: arrayOf(meta.promiseRaised),
+      promisePaid: arrayOf(meta.promisePaid),
+      styleKey: meta.styleKey || ""
+    },
+    ...summary
+  };
 }
 
 function adjacentChapters(articles, article) {
@@ -581,7 +647,7 @@ function validateFrontmatterShape(article, meta) {
     }
   }
 
-  for (const key of ["focusIds", "eventIds", "sourceRefs"]) {
+  for (const key of ["focusIds", "eventIds", "sourceRefs", "storylineIds", "promiseRaised", "promisePaid"]) {
     if (meta[key] != null && !Array.isArray(meta[key])) {
       issues.push(qualityIssue("markdown_parse", "error", `frontmatter.${key}`, `${key} must be an array when present.`));
     }
@@ -611,6 +677,18 @@ function validateWorldSync(world, meta, body) {
   for (const [index, id] of arrayOf(meta.eventIds).entries()) {
     if (!indexes.events.has(id)) {
       issues.push(qualityIssue("world_sync", "high", `frontmatter.eventIds[${index}]`, `Unknown event id "${id}".`));
+    }
+  }
+
+  for (const [index, id] of arrayOf(meta.storylineIds).entries()) {
+    if (!indexes.storylines.has(id)) {
+      issues.push(qualityIssue("world_sync", "medium", `frontmatter.storylineIds[${index}]`, `Unknown storyline id "${id}".`));
+    }
+  }
+
+  for (const [index, id] of [...arrayOf(meta.promiseRaised), ...arrayOf(meta.promisePaid)].entries()) {
+    if (looksLikeOpenLoopId(id) && !indexes.openLoops.has(id)) {
+      issues.push(qualityIssue("world_sync", "low", `frontmatter.promiseRefs[${index}]`, `Unknown open loop id "${id}".`));
     }
   }
 
@@ -895,6 +973,19 @@ function worldIndexes(world) {
       name: item.name,
       founded: item.founded ?? null,
       dissolved: item.dissolved ?? null
+    })),
+    storylines: arrayOf(world.narrative?.storylines).slice(0, 30).map((item) => ({
+      id: item.id,
+      name: item.name,
+      role: item.role || null,
+      targetShare: item.targetShare ?? null,
+      povIds: arrayOf(item.povIds)
+    })),
+    openLoops: arrayOf(world.narrative?.openLoops).slice(0, 40).map((item) => ({
+      id: item.id,
+      question: item.question,
+      importance: item.importance || null,
+      status: item.status || null
     }))
   };
 }
@@ -1060,8 +1151,10 @@ function worldLookup(world) {
   const countries = new Map(arrayOf(world.countries).map((item) => [item.id, { ...item, kind: "country" }]));
   const places = new Map(arrayOf(world.places).map((item) => [item.id, item]));
   const events = new Map(arrayOf(world.events).map((item) => [item.id, item]));
+  const storylines = new Map(arrayOf(world.narrative?.storylines).map((item) => [item.id, item]));
+  const openLoops = new Map(arrayOf(world.narrative?.openLoops).map((item) => [item.id, item]));
   const focusEntities = new Map([...characters, ...organizations, ...countries]);
-  const allRefs = new Map([...focusEntities, ...places, ...events]);
+  const allRefs = new Map([...focusEntities, ...places, ...events, ...storylines, ...openLoops]);
   const normalizedNames = new Set();
 
   for (const item of allRefs.values()) {
@@ -1069,7 +1162,7 @@ function worldLookup(world) {
     if (item.title) normalizedNames.add(normalizeName(item.title));
   }
 
-  return { characters, organizations, countries, places, events, focusEntities, allRefs, normalizedNames };
+  return { characters, organizations, countries, places, events, storylines, openLoops, focusEntities, allRefs, normalizedNames };
 }
 
 function extractBracketRefs(body) {
@@ -1088,6 +1181,10 @@ function illustrationIds(meta) {
 
 function normalizeName(value) {
   return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function looksLikeOpenLoopId(value) {
+  return /^loop_[A-Za-z0-9_-]+$/.test(String(value || ""));
 }
 
 function checkStatus(check, issues) {

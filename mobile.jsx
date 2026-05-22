@@ -37,11 +37,11 @@ function MobileApp() {
 
   const { state, storyActions, entityActions, aiActions, sourceState } = workspace;
   const {
-    world, stories, activeStory, storyReady, storyStatus, storyError,
+    world, setWorld, stories, activeStory, storyReady, storyStatus, storyError,
     currentYear, setCurrentYear,
     folio, setFolio,
     focusId, setFocusId,
-    currentEra: era, canUseStoryApi
+    currentEra: era, canUseStoryApi, readOnly, publicDemo, aiAvailable
   } = state;
   const {
     sourceRange, setSourceRange,
@@ -133,6 +133,13 @@ function MobileApp() {
   // ── Render the active view ───────────────────────────
   const renderActive = () => {
     if (folio === "library") return renderLibrary();
+    if (folio === "director") {
+      return (
+        <div className="mob-scroll">
+          <window.DirectorDesk world={world} setWorld={setWorld} readOnly={readOnly} compact />
+        </div>
+      );
+    }
     if (folio === "about") {
       return (
         <div className="mob-scroll mob-about-scroll">
@@ -162,7 +169,8 @@ function MobileApp() {
                                                       sourceScope={sourceScope}
                                                       sourceRange={sourceRange}
                                                       setSourceRange={setSourceRange}
-                                                      totalCounts={totalCounts} />;
+                                                      totalCounts={totalCounts}
+                                                      readOnly={readOnly} />;
     if (view === "codex")     return <MobileCodex world={world} currentYear={currentYear}
                                                   focusId={focusId} onFocus={setFocusId}
                                                   onJump={onChronJump} />;
@@ -172,7 +180,9 @@ function MobileApp() {
                                                  busy={busy} err={err} onAI={onAI}
                                                  counts={counts}
                                                  onAddBlankEvent={addBlankEvent}
-                                                 onAddBlankChar={addBlankChar} />;
+                                                 onAddBlankChar={addBlankChar}
+                                                 readOnly={readOnly}
+                                                 aiAvailable={aiAvailable} />;
     return null;
   };
 
@@ -189,6 +199,8 @@ function MobileApp() {
             error={storyError}
             disabled={!storyReady}
             canUseApi={canUseStoryApi}
+            readOnly={readOnly}
+            publicDemo={publicDemo}
             onSelectStory={onSelectStory}
             onCreateStory={onCreateStory}
             onDuplicateStory={onDuplicateStory}
@@ -200,7 +212,8 @@ function MobileApp() {
           <div className="mob-top-folio">
             <button className={folio === "atelier" ? "on" : ""} onClick={() => setFolio("atelier")}>I·II Atelier</button>
             <button className={folio === "library" ? "on" : ""} onClick={() => setFolio("library")}>III Library</button>
-            <button className={folio === "about" ? "on" : ""} onClick={() => setFolio("about")}>IV About</button>
+            <button className={folio === "director" ? "on" : ""} onClick={() => setFolio("director")}>IV Director</button>
+            <button className={folio === "about" ? "on" : ""} onClick={() => setFolio("about")}>V About</button>
           </div>
         </div>
         <div className="mob-top-side">
@@ -271,6 +284,8 @@ function MobileStoryBar({
   error,
   disabled,
   canUseApi,
+  readOnly,
+  publicDemo,
   onSelectStory,
   onCreateStory,
   onDuplicateStory,
@@ -280,8 +295,9 @@ function MobileStoryBar({
   onExportStoryTemplate
 }) {
   const importInputRef = useRef(null);
+  const statusLabel = publicDemo ? "demo" : status;
   return (
-    <div className={`mob-storybar ${canUseApi ? "is-api" : "is-static"}`}>
+    <div className={`mob-storybar ${canUseApi ? "is-api" : "is-static"} ${readOnly ? "is-readonly" : ""}`}>
       <div className="mob-storybar-main">
         <select
           className="mob-story-select"
@@ -293,27 +309,29 @@ function MobileStoryBar({
             <option key={story.id} value={story.id}>{story.name}</option>
           ))}
         </select>
-        <span className={`mob-story-state ${status === "error" ? "is-error" : ""}`}>{status}</span>
+        <span className={`mob-story-state ${status === "error" ? "is-error" : ""}`}>{statusLabel}</span>
       </div>
-      <div className="mob-story-actions">
-        <button disabled={disabled} onClick={onCreateStory}>New</button>
-        <button disabled={disabled} onClick={() => importInputRef.current?.click()}>Import</button>
-        <button onClick={onExportStoryTemplate}>Format</button>
-        <button disabled={disabled || !activeStory} onClick={onDuplicateStory}>Copy</button>
-        <button disabled={disabled || !activeStory} onClick={onRenameStory}>Name</button>
-        <button disabled={disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
-        <input
-          ref={importInputRef}
-          hidden
-          type="file"
-          accept=".md,text/markdown,text/plain"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) onImportStoryFile(file);
-            event.target.value = "";
-          }}
-        />
-      </div>
+      {!readOnly && (
+        <div className="mob-story-actions">
+          <button disabled={disabled} onClick={onCreateStory}>New</button>
+          <button disabled={disabled} onClick={() => importInputRef.current?.click()}>Import</button>
+          <button onClick={onExportStoryTemplate}>Format</button>
+          <button disabled={disabled || !activeStory} onClick={onDuplicateStory}>Copy</button>
+          <button disabled={disabled || !activeStory} onClick={onRenameStory}>Name</button>
+          <button disabled={disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+          <input
+            ref={importInputRef}
+            hidden
+            type="file"
+            accept=".md,text/markdown,text/plain"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) onImportStoryFile(file);
+              event.target.value = "";
+            }}
+          />
+        </div>
+      )}
       {error && <div className="mob-story-error">{error}</div>}
     </div>
   );
@@ -461,7 +479,7 @@ function MobileMap({ world, currentYear, layers, setLayers, selectedRegionId, on
 // ─────────────────────────────────────────────────────────────
 // MobileChronicle — year strip + tabs + list of entries
 // ─────────────────────────────────────────────────────────────
-function MobileChronicle({ world, currentYear, onYear, tab, onTab, counts, focusId, onFocus, onAddBlankEvent, onAddBlankChar, sourceIndex, sourceScope, sourceRange, setSourceRange, totalCounts }) {
+function MobileChronicle({ world, currentYear, onYear, tab, onTab, counts, focusId, onFocus, onAddBlankEvent, onAddBlankChar, sourceIndex, sourceScope, sourceRange, setSourceRange, totalCounts, readOnly }) {
   // Build a year strip: era boundaries + every 50/100 yr tick
   const years = useMemo(() => {
     const out = [];
@@ -621,39 +639,46 @@ function MobileCodex({ world, currentYear, focusId, onFocus, onJump }) {
 // ─────────────────────────────────────────────────────────────
 // MobileLeaf — AI desk + quick add
 // ─────────────────────────────────────────────────────────────
-function MobileLeaf({ world, currentYear, era, hint, setHint, story, setStory, busy, err, onAI, counts, onAddBlankEvent, onAddBlankChar }) {
+function MobileLeaf({ world, currentYear, era, hint, setHint, story, setStory, busy, err, onAI, counts, onAddBlankEvent, onAddBlankChar, readOnly, aiAvailable }) {
   return (
     <div className="mob-scroll">
       <div className="mob-leaf">
         <section className="mob-leaf-section">
           <h3 className="mob-leaf-h">The Leaf · 葉</h3>
-          <input className="ai-input" placeholder="Optional direction — 'they meet in the rain'…"
-                 value={hint} onChange={(e) => setHint(e.target.value)} />
-          <div className="ai-row">
-            <button className="ai-btn primary" disabled={busy === "story"} onClick={() => onAI("story")}>
-              {busy === "story" ? "writing…" : "Write the next leaf"}
-            </button>
-            <button className="ai-btn" onClick={() => setStory("")}>clear</button>
-          </div>
+          {!readOnly && aiAvailable && (
+            <>
+              <input className="ai-input" placeholder="Optional direction — 'they meet in the rain'…"
+                     value={hint} onChange={(e) => setHint(e.target.value)} />
+              <div className="ai-row">
+                <button className="ai-btn primary" disabled={busy === "story"} onClick={() => onAI("story")}>
+                  {busy === "story" ? "writing…" : "Write the next leaf"}
+                </button>
+                <button className="ai-btn" onClick={() => setStory("")}>clear</button>
+              </div>
+            </>
+          )}
+          {readOnly && <div className="ai-status">Public demo / local AI disabled</div>}
           {err && <div className="ai-status err">! {err}</div>}
           <div className="story-out">{story}</div>
         </section>
 
+        {!readOnly && (
         <section className="mob-leaf-section">
           <h3 className="mob-leaf-h">Summon · 喚</h3>
           <div className="ai-row" style={{ marginBottom: 10 }}>
-            <button className="ai-btn primary" disabled={busy === "char"} onClick={() => onAI("char")}>
+            {aiAvailable && <button className="ai-btn primary" disabled={busy === "char"} onClick={() => onAI("char")}>
               {busy === "char" ? "summoning…" : "+ AI character"}
-            </button>
-            <button className="ai-btn primary" disabled={busy === "event"} onClick={() => onAI("event")}>
+            </button>}
+            {aiAvailable && <button className="ai-btn primary" disabled={busy === "event"} onClick={() => onAI("event")}>
               {busy === "event" ? "inking…" : "+ AI event"}
-            </button>
+            </button>}
           </div>
           <div className="mob-quick-add">
             <button className="ai-btn" onClick={onAddBlankEvent}>+ blank event</button>
             <button className="ai-btn" onClick={onAddBlankChar}>+ blank soul</button>
           </div>
         </section>
+        )}
 
         <section className="mob-leaf-section">
           <h3 className="mob-leaf-h">The Chronicle · 紀</h3>

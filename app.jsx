@@ -41,7 +41,7 @@ const App = () => {
     currentYear, setCurrentYear,
     folio, setFolio,
     focusId, setFocusId,
-    currentEra, canUseStoryApi
+    currentEra, canUseStoryApi, readOnly, publicDemo, aiAvailable
   } = state;
   const {
     sourceRange, setSourceRange,
@@ -119,7 +119,7 @@ const App = () => {
       const ev = world.events.find((e) => e.id === focusId);
       return <EventDetail ev={ev} world={world} currentYear={currentYear}
                           onUpdate={(p) => updateEvent(ev.id, p)} onDelete={() => deleteEvent(ev.id)}
-                          onJump={onJump} onFocus={setFocusId} sourceRefs={sourceRefs} />;
+                          onJump={onJump} onFocus={setFocusId} sourceRefs={sourceRefs} readOnly={readOnly} />;
     }
     if (kind === "character") {
       const c = world.characters.find((e) => e.id === focusId);
@@ -129,7 +129,7 @@ const App = () => {
                          onJump={onJump} onFocus={setFocusId}
                          onAddSnap={(s) => sm.add(c.id, withCurrentSourceRef(s))} onUpdateSnap={sm.update(c.id)} onDeleteSnap={sm.del(c.id)}
                          onAddRel={addRel} onUpdateRel={updateRel} onDeleteRel={deleteRel}
-                         onAIFill={onAIFill} sourceRefs={sourceRefs} />;
+                         onAIFill={onAIFill} sourceRefs={sourceRefs} readOnly={readOnly} aiAvailable={aiAvailable} />;
     }
     if (kind === "organization") {
       const o = world.organizations.find((e) => e.id === focusId);
@@ -139,7 +139,7 @@ const App = () => {
                         onJump={onJump} onFocus={setFocusId}
                         onAddSnap={(s) => sm.add(o.id, withCurrentSourceRef(s))} onUpdateSnap={sm.update(o.id)} onDeleteSnap={sm.del(o.id)}
                         onAddRel={addRel} onUpdateRel={updateRel} onDeleteRel={deleteRel}
-                        onAIFill={onAIFill} onDraw={startDrawing} sourceRefs={sourceRefs} />;
+                        onAIFill={onAIFill} onDraw={startDrawing} sourceRefs={sourceRefs} readOnly={readOnly} aiAvailable={aiAvailable} />;
     }
     if (kind === "country") {
       const c = world.countries.find((e) => e.id === focusId);
@@ -149,7 +149,7 @@ const App = () => {
                             onJump={onJump} onFocus={setFocusId}
                             onAddSnap={(s) => sm.add(c.id, withCurrentSourceRef(s))} onUpdateSnap={sm.update(c.id)} onDeleteSnap={sm.del(c.id)}
                             onAddRel={addRel} onUpdateRel={updateRel} onDeleteRel={deleteRel}
-                            onAIFill={onAIFill} onDraw={startDrawing} sourceRefs={sourceRefs} />;
+                            onAIFill={onAIFill} onDraw={startDrawing} sourceRefs={sourceRefs} readOnly={readOnly} aiAvailable={aiAvailable} />;
     }
     return null;
   };
@@ -204,6 +204,8 @@ const App = () => {
       error={storyError}
       disabled={!storyReady}
       canUseApi={canUseStoryApi}
+      readOnly={readOnly}
+      publicDemo={publicDemo}
       onSelectStory={onSelectStory}
       onCreateStory={onCreateStory}
       onDuplicateStory={onDuplicateStory}
@@ -224,8 +226,11 @@ const App = () => {
         <button className={`folio-tab ${folio === "library" ? "on" : ""}`} onClick={() => setFolio("library")}>
           <span className="folio-num">III</span> The Library · Books
         </button>
+        <button className={`folio-tab ${folio === "director" ? "on" : ""}`} onClick={() => setFolio("director")}>
+          <span className="folio-num">IV</span> Director's Desk
+        </button>
         <button className={`folio-tab ${folio === "about" ? "on" : ""}`} onClick={() => setFolio("about")}>
-          <span className="folio-num">IV</span> About Me
+          <span className="folio-num">V</span> About Me
         </button>
       </div>
     </div>
@@ -248,13 +253,28 @@ const App = () => {
         {switcher}
         <Library world={world} setWorld={setWorld} currentYear={currentYear}
                  focusId={focusId} onFocus={(id) => { setFocusId(id); setFolio("atelier"); }}
-                 onJump={(y) => { setCurrentYear(y); setFolio("atelier"); }} />
+                 onJump={(y) => { setCurrentYear(y); setFolio("atelier"); }} readOnly={readOnly} aiAvailable={aiAvailable} />
+      </div>
+    );
+  }
+
+  if (folio === "director") {
+    return (
+      <div>
+        {storyBar}
+        {switcher}
+        <window.DirectorDesk
+          world={world}
+          setWorld={setWorld}
+          readOnly={readOnly}
+          onFocus={(id) => { setFocusId(id); setFolio("atelier"); }}
+        />
       </div>
     );
   }
 
   return (
-    <div>
+    <div className={readOnly ? "is-readonly-runtime" : ""}>
       {storyBar}
       {switcher}
       <div className={`atelier ${isHorizontal ? "stage-horizontal" : "stage-vertical"}`}>
@@ -263,36 +283,36 @@ const App = () => {
         <section className="panel">
           <div className="panel-head" style={{ paddingBottom: 0, borderBottom: "none" }}>
             <h3>The Chronicle</h3>
-            <button className="ai-btn danger small" onClick={onReset} title="Restart">↺</button>
+            {!readOnly && <button className="ai-btn danger small" onClick={onReset} title="Restart">↺</button>}
           </div>
           <Tabs tab={tab} onTab={setTab} counts={counts} />
           <div className="panel-body ins-body">
-            <div className="ai-row" style={{ marginBottom: 8 }}>
+            {!readOnly && <div className="ai-row" style={{ marginBottom: 8 }}>
               {tab === "events" && (
                 <>
                   <button className="ai-btn" onClick={addBlankEvent}>+ blank</button>
-                  <button className="ai-btn primary" disabled={busy === "event"} onClick={() => onAI("event")}>{busy === "event" ? "inking…" : "+ AI event"}</button>
+                  {aiAvailable && <button className="ai-btn primary" disabled={busy === "event"} onClick={() => onAI("event")}>{busy === "event" ? "inking…" : "+ AI event"}</button>}
                 </>
               )}
               {tab === "characters" && (
                 <>
                   <button className="ai-btn" onClick={addBlankChar}>+ blank</button>
-                  <button className="ai-btn primary" disabled={busy === "char"} onClick={() => onAI("char")}>{busy === "char" ? "summoning…" : "+ AI character"}</button>
+                  {aiAvailable && <button className="ai-btn primary" disabled={busy === "char"} onClick={() => onAI("char")}>{busy === "char" ? "summoning…" : "+ AI character"}</button>}
                 </>
               )}
               {tab === "orgs" && (
                 <>
                   <button className="ai-btn" onClick={addBlankOrg}>+ blank</button>
-                  <button className="ai-btn primary" disabled={busy === "org"} onClick={() => onAI("org")}>{busy === "org" ? "founding…" : "+ AI organization"}</button>
+                  {aiAvailable && <button className="ai-btn primary" disabled={busy === "org"} onClick={() => onAI("org")}>{busy === "org" ? "founding…" : "+ AI organization"}</button>}
                 </>
               )}
               {tab === "countries" && (
                 <>
                   <button className="ai-btn" onClick={addBlankCountry}>+ blank</button>
-                  <button className="ai-btn primary" disabled={busy === "country"} onClick={() => onAI("country")}>{busy === "country" ? "drawing borders…" : "+ AI country"}</button>
+                  {aiAvailable && <button className="ai-btn primary" disabled={busy === "country"} onClick={() => onAI("country")}>{busy === "country" ? "drawing borders…" : "+ AI country"}</button>}
                 </>
               )}
-            </div>
+            </div>}
             {renderList()}
           </div>
         </section>
@@ -300,12 +320,17 @@ const App = () => {
         <section className="panel" style={{ flex: "0 0 auto" }}>
           <header className="panel-head"><h3>The Leaf</h3></header>
           <div className="panel-body ai-desk">
-            <input className="ai-input" placeholder="Optional direction for AI — 'they meet in the rain'…"
-                   value={hint} onChange={(e) => setHint(e.target.value)} />
-            <div className="ai-row">
-              <button className="ai-btn primary" disabled={busy === "story"} onClick={() => onAI("story")}>{busy === "story" ? "writing…" : "Write the next leaf"}</button>
-              <button className="ai-btn" onClick={() => setStory("")}>clear</button>
-            </div>
+            {!readOnly && aiAvailable && (
+              <>
+                <input className="ai-input" placeholder="Optional direction for AI — 'they meet in the rain'…"
+                       value={hint} onChange={(e) => setHint(e.target.value)} />
+                <div className="ai-row">
+                  <button className="ai-btn primary" disabled={busy === "story"} onClick={() => onAI("story")}>{busy === "story" ? "writing…" : "Write the next leaf"}</button>
+                  <button className="ai-btn" onClick={() => setStory("")}>clear</button>
+                </div>
+              </>
+            )}
+            {readOnly && <div className="ai-status">Public demo / local AI disabled</div>}
             <div className="story-out">{story}</div>
             {err && <div className="ai-status err">! {err}</div>}
           </div>
@@ -471,6 +496,8 @@ function StoryWorkspaceBar({
   error,
   disabled,
   canUseApi,
+  readOnly,
+  publicDemo,
   onSelectStory,
   onCreateStory,
   onDuplicateStory,
@@ -485,11 +512,12 @@ function StoryWorkspaceBar({
     status === "saved" ? "saved" :
     status === "loading" ? "loading" :
     status === "static" ? "static fallback" :
+    status === "demo" || publicDemo ? "public demo" :
     status === "error" ? "error" :
     mode === "api" ? "markdown wiki" : mode;
 
   return (
-    <div className={`story-switch ${canUseApi ? "is-api" : "is-static"}`}>
+    <div className={`story-switch ${canUseApi ? "is-api" : "is-static"} ${readOnly ? "is-readonly" : ""}`}>
       <div className="story-switch-main">
         <span className="story-switch-kicker">Story wiki</span>
         <select
@@ -504,25 +532,27 @@ function StoryWorkspaceBar({
         </select>
         <span className={`story-save-state ${status === "error" ? "is-error" : ""}`}>{statusLabel}</span>
       </div>
-      <div className="story-actions">
-        <button className="story-action" disabled={disabled} onClick={onCreateStory}>New</button>
-        <button className="story-action" disabled={disabled} onClick={() => importInputRef.current?.click()}>Import</button>
-        <button className="story-action" onClick={onExportStoryTemplate}>Template</button>
-        <button className="story-action" disabled={disabled || !activeStory} onClick={onDuplicateStory}>Duplicate</button>
-        <button className="story-action" disabled={disabled || !activeStory} onClick={onRenameStory}>Rename</button>
-        <button className="story-action danger" disabled={disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
-        <input
-          ref={importInputRef}
-          hidden
-          type="file"
-          accept=".md,text/markdown,text/plain"
-          onChange={(event) => {
-            const file = event.target.files?.[0];
-            if (file) onImportStoryFile(file);
-            event.target.value = "";
-          }}
-        />
-      </div>
+      {!readOnly && (
+        <div className="story-actions">
+          <button className="story-action" disabled={disabled} onClick={onCreateStory}>New</button>
+          <button className="story-action" disabled={disabled} onClick={() => importInputRef.current?.click()}>Import</button>
+          <button className="story-action" onClick={onExportStoryTemplate}>Template</button>
+          <button className="story-action" disabled={disabled || !activeStory} onClick={onDuplicateStory}>Duplicate</button>
+          <button className="story-action" disabled={disabled || !activeStory} onClick={onRenameStory}>Rename</button>
+          <button className="story-action danger" disabled={disabled || !activeStory} onClick={onArchiveStory}>Archive</button>
+          <input
+            ref={importInputRef}
+            hidden
+            type="file"
+            accept=".md,text/markdown,text/plain"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              if (file) onImportStoryFile(file);
+              event.target.value = "";
+            }}
+          />
+        </div>
+      )}
       <window.ThemeToggle className="story-theme-toggle" />
       <div className="i18n-slot story-i18n-slot" data-i18n-slot="desktop" />
       {error && <div className="story-switch-error">{error}</div>}

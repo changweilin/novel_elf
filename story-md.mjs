@@ -24,6 +24,23 @@ const DEFAULT_ERA = {
   blurb: "The first span of the story."
 };
 
+const DEFAULT_NARRATIVE = {
+  premise: "",
+  themes: [],
+  storylines: [],
+  characterArcs: [],
+  openLoops: [],
+  style: {
+    narration: "",
+    tense: "",
+    sentenceRhythm: "",
+    sensoryPriority: [],
+    metaphorRules: "",
+    avoid: [],
+    dialogue: ""
+  }
+};
+
 export function cloneJson(value) {
   return JSON.parse(JSON.stringify(value ?? null));
 }
@@ -63,6 +80,7 @@ export function normalizeWorld(input = {}) {
     organizations: arrayOf(world.organizations),
     characters: arrayOf(world.characters),
     relationships: arrayOf(world.relationships),
+    narrative: normalizeNarrative(world.narrative),
     library: normalizeLibrary(world.library)
   };
   return normalized;
@@ -86,6 +104,7 @@ export function createEmptyWorld({ id, name, subtitle, defaultYear } = {}) {
     organizations: [],
     characters: [],
     relationships: [],
+    narrative: normalizeNarrative(),
     library: { books: [] }
   });
 }
@@ -145,11 +164,13 @@ export async function readWorldFromMarkdown(storyDir) {
   const story = await readMarkdown(join(storyDir, "story.md"));
   const atlas = await readOptionalMarkdown(join(storyDir, "atlas.md"));
   const rels = await readOptionalMarkdown(join(storyDir, "relationships.md"));
+  const narrative = await readOptionalMarkdown(join(storyDir, "narrative.md"));
 
   const world = normalizeWorld({
     ...story.meta,
     ...pick(atlas?.meta || {}, ["regions", "rivers", "mountains", "forests", "ruins"]),
-    relationships: rels?.meta?.relationships || []
+    relationships: rels?.meta?.relationships || [],
+    narrative: narrative ? cleanReadMeta(narrative.meta) : undefined
   });
 
   world.storyId = story.meta.id || basename(storyDir);
@@ -200,6 +221,13 @@ export async function writeWorldToMarkdown(storyDir, storyId, inputWorld, option
     relationships: world.relationships,
     savedAt: now
   }, "# Relationships\n\nRelationship records are stored in JSON frontmatter.", expected);
+
+  await writeMarkdownFile(storyDir, "narrative.md", {
+    schema: STORY_SCHEMA,
+    kind: "narrative",
+    ...world.narrative,
+    savedAt: now
+  }, narrativeBodyFor(world.narrative), expected);
 
   for (const [key, kind, dirName] of COLLECTIONS) {
     await writeCollection(storyDir, dirName, kind, world[key], expected, now);
@@ -450,6 +478,71 @@ function normalizeLibrary(library) {
       }))
     }))
   };
+}
+
+function normalizeNarrative(narrative = {}) {
+  const source = cloneJson(narrative) || {};
+  const style = { ...DEFAULT_NARRATIVE.style, ...(source.style || {}) };
+  return {
+    ...source,
+    premise: source.premise || "",
+    themes: arrayOf(source.themes),
+    storylines: arrayOf(source.storylines).map((line, index) => ({
+      ...line,
+      id: line.id || `line_${index + 1}`,
+      name: line.name || line.id || `Storyline ${index + 1}`,
+      role: line.role || "supporting",
+      targetShare: normalizeShare(line.targetShare),
+      povIds: arrayOf(line.povIds),
+      actShares: arrayOf(line.actShares)
+    })),
+    characterArcs: arrayOf(source.characterArcs).map((arc) => ({
+      ...arc,
+      characterId: arc.characterId || "",
+      want: arc.want || "",
+      need: arc.need || "",
+      lie: arc.lie || "",
+      arcStage: arc.arcStage || "",
+      nextRequiredBeat: arc.nextRequiredBeat || ""
+    })),
+    openLoops: arrayOf(source.openLoops).map((loop, index) => ({
+      ...loop,
+      id: loop.id || `loop_${index + 1}`,
+      question: loop.question || "",
+      importance: loop.importance || "minor",
+      status: loop.status || "active"
+    })),
+    style: {
+      ...style,
+      sensoryPriority: arrayOf(style.sensoryPriority),
+      avoid: arrayOf(style.avoid)
+    }
+  };
+}
+
+function normalizeShare(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(1, number));
+}
+
+function narrativeBodyFor(narrative) {
+  const lines = ["# Narrative Blueprint"];
+  if (narrative?.premise) lines.push("", narrative.premise);
+  if (arrayOf(narrative?.storylines).length) {
+    lines.push("", "## Storylines", "");
+    for (const line of narrative.storylines) {
+      const share = line.targetShare ? ` (${Math.round(line.targetShare * 100)}%)` : "";
+      lines.push(`- ${line.name || line.id}${share}: ${line.promise || line.currentPressure || line.role || ""}`.trim());
+    }
+  }
+  if (narrative?.style?.narration || narrative?.style?.metaphorRules) {
+    lines.push("", "## Style", "");
+    if (narrative.style.narration) lines.push(`- Narration: ${narrative.style.narration}`);
+    if (narrative.style.tense) lines.push(`- Tense: ${narrative.style.tense}`);
+    if (narrative.style.metaphorRules) lines.push(`- Metaphor rules: ${narrative.style.metaphorRules}`);
+  }
+  return lines.join("\n");
 }
 
 function inferDefaultYear(eras, events = []) {

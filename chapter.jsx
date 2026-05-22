@@ -12,7 +12,7 @@ function chapterSlug(value, fallback) {
   return String(value || fallback || "item").toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "") || fallback || "item";
 }
 
-function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, onBack, onFocus, onJump }) {
+function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, onBack, onFocus, onJump, readOnly, aiAvailable }) {
   const [busy, setBusy] = useStateChap(null);
   const [hint, setHint] = useStateChap("");
   const [warnings, setWarnings] = useStateChap(null);   // null = never checked; [] = clean
@@ -22,10 +22,11 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
     try { return JSON.parse(localStorage.getItem("aevenmere.lib.synclog." + chapter.id) || "[]"); } catch { return []; }
   });
   const [err, setErr] = useStateChap(null);
-  const [mdOpen, setMdOpen] = useStateChap(true);
+  const [mdOpen, setMdOpen] = useStateChap(() => !readOnly);
   const taRef = useRefChap(null);
 
   useEffectChap(() => {
+    if (window.NovelElfRuntime?.storageEnabled === false) return;
     try { localStorage.setItem("aevenmere.lib.synclog." + chapter.id, JSON.stringify(syncLog)); } catch {}
   }, [syncLog, chapter.id]);
 
@@ -37,15 +38,37 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   const writingContext = useMemoChap(() => (
     window.buildWritingContext ? window.buildWritingContext(world, chapter, book, volume) : { sections: {} }
   ), [world, chapter, book, volume]);
+  const narrative = world.narrative || {};
+  const storylines = chapterArr(narrative.storylines);
+  const activeStorylines = chapterArr(chapter.storylineIds)
+    .map((id) => storylines.find((line) => line.id === id))
+    .filter(Boolean);
+
+  const toggleStoryline = (id) => {
+    if (readOnly) return;
+    const ids = chapterArr(chapter.storylineIds);
+    updateChapter({
+      storylineIds: ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]
+    });
+  };
+
+  const updateListField = (field, value) => {
+    if (readOnly) return;
+    updateChapter({
+      [field]: String(value || "").split(",").map((item) => item.trim()).filter(Boolean)
+    });
+  };
 
   // ── Word count + autosave (already in world state) ──
   const words = (chapter.md || "").trim().split(/\s+/).filter(Boolean).length;
   useEffectChap(() => {
+    if (readOnly) return;
     if (words !== chapter.words) updateChapter({ words });
   }, [words]);
 
   // ── Handlers ──
   const onContinue = async () => {
+    if (readOnly || !aiAvailable) return;
     setBusy("write"); setErr(null);
     try {
       const para = await window.aiWriteChapterParagraph(world, chapter, hint, book, volume);
@@ -56,6 +79,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   };
 
   const onCheck = async () => {
+    if (readOnly || !aiAvailable) return;
     setBusy("check"); setErr(null);
     try {
       const out = await window.aiCheckConsistency(world, chapter, book, volume);
@@ -78,6 +102,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   );
 
   const onSync = async () => {
+    if (readOnly || !aiAvailable) return;
     setBusy("sync"); setErr(null);
     try {
       const out = await window.aiSyncChapterToWorld(world, chapter, book, volume);
@@ -113,6 +138,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   };
 
   const applySyncProposal = (proposal) => {
+    if (readOnly) return;
     if (!proposal) return;
     const stamps = [];
     let W = { ...world };
@@ -199,6 +225,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   };
 
   const acceptSyncItem = (kind, index) => {
+    if (readOnly) return;
     const proposal = {
       summary: pendingSync?.summary || "",
       snapshots: kind === "snapshots" ? [pendingSync.snapshots[index]] : [],
@@ -213,6 +240,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   };
 
   const dropSyncItem = (kind, index) => {
+    if (readOnly) return;
     setPendingSync((prev) => {
       const next = { ...prev, [kind]: chapterArr(prev?.[kind]).filter((_, i) => i !== index) };
       return proposalCount(next) ? next : null;
@@ -220,6 +248,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
   };
 
   const acceptAllSync = () => {
+    if (readOnly) return;
     applySyncProposal(pendingSync);
     setPendingSync(null);
   };
@@ -230,14 +259,17 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
       <div className="chap-head">
         <span className="chap-head-tag">— {book.title} · {volume.title} —</span>
         <h1 className="chap-head-title"
-            contentEditable suppressContentEditableWarning
-            onBlur={(e) => updateChapter({ title: e.currentTarget.textContent.trim() })}>
+            contentEditable={!readOnly} suppressContentEditableWarning
+            onBlur={(e) => !readOnly && updateChapter({ title: e.currentTarget.textContent.trim() })}>
           {chapter.title}
         </h1>
         <div className="chap-head-meta">
           <span className="chap-head-pill gold">{AVN.yearLabel(chapter.year)}</span>
           {era && <span className="chap-head-pill">{era.name}</span>}
           {place && <span className="chap-head-pill">{place.name}</span>}
+          {activeStorylines.map((line) => (
+            <span key={line.id} className="chap-head-pill">{line.name}</span>
+          ))}
           {focuses.map((f) => (
             <button key={f.id} className="chap-head-focus" onClick={() => onFocus(f.id)} title="open in chronicle">
               {f.name}
@@ -249,12 +281,16 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
       {/* Toolbar */}
       <div className="chap-tools">
         <button className="ai-btn" onClick={onBack}>← back to book</button>
-        <button className="ai-btn primary" disabled={busy === "write"} onClick={onContinue}>
-          {busy === "write" ? "writing…" : "✎ write the next paragraph"}
-        </button>
-        <input className="ai-input" style={{ minWidth: 220, fontSize: 12, padding: "6px 10px" }}
-               placeholder="direction for AI — 'they hear a bell at dusk'…"
-               value={hint} onChange={(e) => setHint(e.target.value)} />
+        {!readOnly && aiAvailable && (
+          <>
+            <button className="ai-btn primary" disabled={busy === "write"} onClick={onContinue}>
+              {busy === "write" ? "writing…" : "✎ write the next paragraph"}
+            </button>
+            <input className="ai-input" style={{ minWidth: 220, fontSize: 12, padding: "6px 10px" }}
+                   placeholder="direction for AI — 'they hear a bell at dusk'…"
+                   value={hint} onChange={(e) => setHint(e.target.value)} />
+          </>
+        )}
         <button className="ai-btn" onClick={() => setMdOpen((x) => !x)}>{mdOpen ? "hide md ⌗" : "show md ⌗"}</button>
         <span className="chap-words">{words.toLocaleString()} words · {chapter.status}</span>
       </div>
@@ -285,8 +321,9 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
                 ref={taRef}
                 className="chap-md-text"
                 spellCheck={false}
+                readOnly={readOnly}
                 value={chapter.md || ""}
-                onChange={(e) => updateChapter({ md: e.target.value })}
+                onChange={(e) => !readOnly && updateChapter({ md: e.target.value })}
               />
             </div>
           </section>
@@ -296,6 +333,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
       {/* Right rail */}
       <aside className="chap-rail">
         {/* AI desk */}
+        {!readOnly && aiAvailable && (
         <section className="rail-panel">
           <header className="rail-head">
             <span className="rail-label">— The Quill</span>
@@ -306,7 +344,9 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
               <div className="ai-context-row"><span className="ai-context-key">Year</span><span className="ai-context-val">{AVN.yearLabel(chapter.year)} {era && <em style={{ color: "var(--gold-2)", fontStyle: "italic" }}>· {era.name}</em>}</span></div>
               <div className="ai-context-row"><span className="ai-context-key">Place</span><span className="ai-context-val">{place ? place.name : <em style={{ color: "var(--slate)" }}>anywhere</em>}</span></div>
               <div className="ai-context-row"><span className="ai-context-key">Focus</span><span className="ai-context-val">{focuses.length ? focuses.map((f) => f.name).join(" · ") : <em style={{ color: "var(--slate)" }}>none bound</em>}</span></div>
+              <div className="ai-context-row"><span className="ai-context-key">Line</span><span className="ai-context-val">{activeStorylines.length ? activeStorylines.map((line) => line.name).join(" · ") : <em style={{ color: "var(--slate)" }}>unset</em>}</span></div>
               <div className="ai-context-row"><span className="ai-context-key">Goal</span><span className="ai-context-val">{chapter.sceneGoal || <em style={{ color: "var(--slate)" }}>unset</em>}</span></div>
+              <div className="ai-context-row"><span className="ai-context-key">Function</span><span className="ai-context-val">{chapter.narrativeFunction || <em style={{ color: "var(--slate)" }}>unset</em>}</span></div>
               <div className="ai-context-row"><span className="ai-context-key">Canon</span><span className="ai-context-val">{writingContext.sections?.neighboringChapters ? "scene + neighboring chapters" : "basic context"}</span></div>
             </div>
             <div className="ai-row">
@@ -317,6 +357,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
             </div>
           </div>
         </section>
+        )}
 
         {/* Scene card */}
         <section className="rail-panel">
@@ -327,38 +368,91 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
           <div className="rail-body">
             <label className="scene-field">
               <span>POV</span>
-              <select value={chapter.povId || ""} onChange={(e) => updateChapter({ povId: e.target.value || null })}>
+              <select value={chapter.povId || ""} disabled={readOnly} onChange={(e) => updateChapter({ povId: e.target.value || null })}>
                 <option value="">Unassigned</option>
                 {world.characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </label>
+            <div className="scene-field">
+              <span>Storylines</span>
+              <div className="scene-checks">
+                {storylines.length === 0 && <em>No storylines in narrative blueprint</em>}
+                {storylines.map((line) => (
+                  <label key={line.id} className="scene-check">
+                    <input
+                      type="checkbox"
+                      checked={chapterArr(chapter.storylineIds).includes(line.id)}
+                      disabled={readOnly}
+                      onChange={() => toggleStoryline(line.id)}
+                    />
+                    <span>{line.name}</span>
+                    {line.targetShare > 0 && <small>{Math.round(line.targetShare * 100)}%</small>}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <label className="scene-field">
+              <span>Scene Type</span>
+              <select value={chapter.sceneType || ""} disabled={readOnly} onChange={(e) => updateChapter({ sceneType: e.target.value })}>
+                <option value="">Unset</option>
+                <option value="setup">Setup</option>
+                <option value="reveal">Reveal</option>
+                <option value="turn">Turn</option>
+                <option value="payoff">Payoff</option>
+                <option value="aftermath">Aftermath</option>
+                <option value="bridge">Bridge</option>
+              </select>
+            </label>
+            <label className="scene-field">
+              <span>Tension {chapter.tensionLevel || 0}</span>
+              <input
+                type="range"
+                min="0"
+                max="10"
+                value={Number(chapter.tensionLevel) || 0}
+                disabled={readOnly}
+                onChange={(e) => updateChapter({ tensionLevel: Number(e.target.value) })}
+              />
+            </label>
+            <label className="scene-field">
+              <span>Narrative Function</span>
+              <textarea value={chapter.narrativeFunction || ""} readOnly={readOnly} onChange={(e) => updateChapter({ narrativeFunction: e.target.value })} />
+            </label>
             <label className="scene-field">
               <span>Goal</span>
-              <textarea value={chapter.sceneGoal || ""} onChange={(e) => updateChapter({ sceneGoal: e.target.value })} />
+              <textarea value={chapter.sceneGoal || ""} readOnly={readOnly} onChange={(e) => updateChapter({ sceneGoal: e.target.value })} />
             </label>
             <label className="scene-field">
               <span>Conflict</span>
-              <textarea value={chapter.conflict || ""} onChange={(e) => updateChapter({ conflict: e.target.value })} />
+              <textarea value={chapter.conflict || ""} readOnly={readOnly} onChange={(e) => updateChapter({ conflict: e.target.value })} />
             </label>
             <label className="scene-field">
               <span>Turn</span>
-              <textarea value={chapter.turn || ""} onChange={(e) => updateChapter({ turn: e.target.value })} />
+              <textarea value={chapter.turn || ""} readOnly={readOnly} onChange={(e) => updateChapter({ turn: e.target.value })} />
             </label>
             <label className="scene-field">
               <span>Emotion</span>
-              <input value={chapter.emotionalDelta || ""} onChange={(e) => updateChapter({ emotionalDelta: e.target.value })} />
+              <input value={chapter.emotionalDelta || ""} readOnly={readOnly} onChange={(e) => updateChapter({ emotionalDelta: e.target.value })} />
+            </label>
+            <label className="scene-field">
+              <span>Promises Raised</span>
+              <input value={chapterArr(chapter.promiseRaised).join(", ")} readOnly={readOnly} onChange={(e) => updateListField("promiseRaised", e.target.value)} />
+            </label>
+            <label className="scene-field">
+              <span>Promises Paid</span>
+              <input value={chapterArr(chapter.promisePaid).join(", ")} readOnly={readOnly} onChange={(e) => updateListField("promisePaid", e.target.value)} />
             </label>
             <label className="scene-field">
               <span>Continuity</span>
-              <textarea value={chapter.continuityNotes || ""} onChange={(e) => updateChapter({ continuityNotes: e.target.value })} />
+              <textarea value={chapter.continuityNotes || ""} readOnly={readOnly} onChange={(e) => updateChapter({ continuityNotes: e.target.value })} />
             </label>
             <label className="scene-field">
               <span>Summary</span>
-              <textarea value={chapter.summary || ""} onChange={(e) => updateChapter({ summary: e.target.value })} />
+              <textarea value={chapter.summary || ""} readOnly={readOnly} onChange={(e) => updateChapter({ summary: e.target.value })} />
             </label>
             <label className="scene-field">
               <span>Style</span>
-              <input value={chapter.styleKey || ""} onChange={(e) => updateChapter({ styleKey: e.target.value })} />
+              <input value={chapter.styleKey || ""} readOnly={readOnly} onChange={(e) => updateChapter({ styleKey: e.target.value })} />
             </label>
           </div>
         </section>
@@ -382,23 +476,26 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
                       <div className="rail-ill-cap">{ill.caption}</div>
                       <div className="rail-ill-placeholder">{ill.placeholder}</div>
                     </div>
-                    <div className="rail-ill-actions">
-                      <button className="ai-btn">upload</button>
-                      <button className="ai-btn">+ AI</button>
-                    </div>
+                    {!readOnly && (
+                      <div className="rail-ill-actions">
+                        <button className="ai-btn">upload</button>
+                        {aiAvailable && <button className="ai-btn">+ AI</button>}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-            <button className="ai-btn" style={{ alignSelf: "flex-start" }}
+            {!readOnly && <button className="ai-btn" style={{ alignSelf: "flex-start" }}
                     onClick={() => {
                       const id = "ill_" + Math.random().toString(36).slice(2, 6);
                       updateChapter({ illustrations: [...(chapter.illustrations || []), { id, caption: "An unnamed plate", placeholder: "drop description here", url: null }] });
-                    }}>+ new plate</button>
+                    }}>+ new plate</button>}
           </div>
         </section>
 
         {/* Consistency */}
+        {!readOnly && aiAvailable && (
         <section className="rail-panel">
           <header className="rail-head">
             <span className="rail-label">— Continuity</span>
@@ -441,8 +538,10 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
             )}
           </div>
         </section>
+        )}
 
         {/* Sync */}
+        {!readOnly && aiAvailable && (
         <section className="rail-panel">
           <header className="rail-head">
             <span className="rail-label">— Sync to Codex</span>
@@ -535,6 +634,7 @@ function ChapterEditor({ world, setWorld, book, volume, chapter, updateChapter, 
             )}
           </div>
         </section>
+        )}
 
         {err && <div className="ai-status err">! {err}</div>}
       </aside>

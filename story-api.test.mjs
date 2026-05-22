@@ -111,6 +111,7 @@ test("article API indexes chapters, reads article context, and writes safe draft
     assert.ok(Array.isArray(detail.outline));
     assert.ok(Array.isArray(detail.chunks));
     assert.ok(detail.relatedWorld.story.id);
+    assert.ok(detail.relatedWorld.narrative.storylines.length >= 1);
     assert.ok("previous" in detail.adjacentChapters);
     assert.ok("next" in detail.adjacentChapters);
 
@@ -127,6 +128,11 @@ test("article API indexes chapters, reads article context, and writes safe draft
     assert.ok(context.budget.usedChars <= context.budget.maxChars);
     assert.ok(context.sections.some((section) => section.kind === "article"));
     assert.ok(context.sections.some((section) => section.kind === "article_body"));
+
+    const narrativeContext = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/context?task=continue_article&maxChars=12000`);
+    const narrativeSection = narrativeContext.sections.find((section) => section.kind === "narrative_blueprint");
+    assert.ok(narrativeSection);
+    assert.match(narrativeSection.content, /storylines|style/i);
 
     const quality = await request(`${base}/api/stories/${storyId}/articles/${encodeURIComponent(chapter.id)}/quality`);
     assert.equal(quality.ok, true);

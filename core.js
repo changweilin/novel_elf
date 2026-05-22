@@ -122,8 +122,12 @@ window.AVN = (function () {
             globalChapterNo,
             year: chapter.year,
             placeId: chapter.placeId || null,
+            povId: chapter.povId || null,
             focusIds: list(chapter.focusIds),
-            eventIds: list(chapter.eventIds)
+            eventIds: list(chapter.eventIds),
+            storylineIds: list(chapter.storylineIds),
+            sceneType: chapter.sceneType || null,
+            tensionLevel: chapter.tensionLevel ?? null
           };
           ref.label = sourceLabel(ref);
           ref.compactLabel = compactSourceLabel(ref);

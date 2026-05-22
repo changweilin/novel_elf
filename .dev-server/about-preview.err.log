@@ -1,0 +1,5 @@
+Error: Unsupported article task: continue_article&maxChars=14000
+    at normalizeTask (file:///C:/Users/user/Documents/app/novel_elf/story-articles.mjs:506:11)
+    at buildArticleContextPack (file:///C:/Users/user/Documents/app/novel_elf/story-articles.mjs:191:16)
+    at handleApi (file:///C:/Users/user/Documents/app/novel_elf/dev-server.mjs:184:31)
+    at async Server.<anonymous> (file:///C:/Users/user/Documents/app/novel_elf/dev-server.mjs:53:7)

@@ -5,9 +5,15 @@
 const KIND_LABELS = { country: "Country", organization: "Organization", character: "Character", event: "Event" };
 const REL_KINDS = ["ally", "war", "feud", "trade", "vassal", "oath", "rival", "leads", "loves", "mentor"];
 
+function isRuntimeReadOnly() {
+  const runtime = window.NovelElfRuntime || {};
+  return runtime.readOnly === true || runtime.publicDemo === true;
+}
+
 const Editable = ({ value, onChange, multiline, placeholder, className, asNumber }) => {
   const ref = React.useRef(null);
   const [f, setF] = React.useState(false);
+  const readOnly = isRuntimeReadOnly();
   React.useEffect(() => {
     if (ref.current && !f) {
       const v = value == null ? "" : String(value);
@@ -16,9 +22,11 @@ const Editable = ({ value, onChange, multiline, placeholder, className, asNumber
   }, [value, f]);
   return (
     <div ref={ref} className={`editable ${className || ""} ${multiline ? "multi" : ""}`}
-         contentEditable suppressContentEditableWarning
+         contentEditable={!readOnly} suppressContentEditableWarning
+         data-readonly={readOnly ? "true" : "false"}
          onFocus={() => setF(true)}
          onBlur={(e) => {
+           if (readOnly) return;
            setF(false);
            const t = e.currentTarget.innerText;
            onChange(asNumber ? (t === "" ? null : parseInt(t)) : t);
@@ -38,13 +46,15 @@ const Tabs = ({ tab, onTab, counts }) => (
   </div>
 );
 
-const SnapList = ({ snaps, fields, onUpdate, onAdd, onDelete, onJump, currentYear, accent }) => (
-  <div className="snap-list">
-    <div className="snap-head">
-      <span>Development</span>
-      <button className="ai-btn" onClick={onAdd}>+ snapshot</button>
-    </div>
-    {(snaps || []).slice().sort((a,b) => a.year - b.year).map((s, i) => {
+const SnapList = ({ snaps, fields, onUpdate, onAdd, onDelete, onJump, currentYear, accent }) => {
+  const readOnly = isRuntimeReadOnly();
+  return (
+    <div className="snap-list">
+      <div className="snap-head">
+        <span>Development</span>
+        {!readOnly && <button className="ai-btn" onClick={onAdd}>+ snapshot</button>}
+      </div>
+      {(snaps || []).slice().sort((a,b) => a.year - b.year).map((s, i) => {
       const isLatest = snaps.every((x) => x === s || x.year <= s.year || x.year > currentYear);
       const active = s.year <= currentYear && isLatest;
       return (
@@ -52,7 +62,7 @@ const SnapList = ({ snaps, fields, onUpdate, onAdd, onDelete, onJump, currentYea
           <div className="snap-row-head">
             <Editable className="snap-year" value={s.year} asNumber onChange={(v) => onUpdate(s, { year: v ?? s.year })} />
             <button className="snap-jump" onClick={() => onJump(s.year)}>jump</button>
-            <button className="snap-del" onClick={() => onDelete(s)}>×</button>
+            {!readOnly && <button className="snap-del" onClick={() => onDelete(s)}>×</button>}
           </div>
           {fields.map((f) => (
             <div key={f.key} className="snap-field">
@@ -72,18 +82,20 @@ const SnapList = ({ snaps, fields, onUpdate, onAdd, onDelete, onJump, currentYea
           ))}
         </div>
       );
-    })}
-    {(!snaps || snaps.length === 0) && <div className="ai-status" style={{ padding: 6 }}>— no snapshots yet —</div>}
-  </div>
-);
+      })}
+      {(!snaps || snaps.length === 0) && <div className="ai-status" style={{ padding: 6 }}>— no snapshots yet —</div>}
+    </div>
+  );
+};
 
 const RelList = ({ world, entityId, onAdd, onUpdate, onDelete, onFocus }) => {
+  const readOnly = isRuntimeReadOnly();
   const rels = (world.relationships || []).filter((r) => r.a === entityId || r.b === entityId);
   return (
     <div className="rel-list">
       <div className="snap-head">
         <span>Relationships</span>
-        <button className="ai-btn" onClick={onAdd}>+ relation</button>
+        {!readOnly && <button className="ai-btn" onClick={onAdd}>+ relation</button>}
       </div>
       {rels.length === 0 && <div className="ai-status" style={{ padding: 6 }}>— no relations —</div>}
       {rels.map((r) => {
@@ -93,14 +105,14 @@ const RelList = ({ world, entityId, onAdd, onUpdate, onDelete, onFocus }) => {
         return (
           <div key={r.id} className="rel-row">
             <div className="rel-line">
-              <select className="rel-kind" value={r.kind} onChange={(e) => onUpdate(r.id, { kind: e.target.value })}>
+              <select className="rel-kind" value={r.kind} disabled={readOnly} onChange={(e) => onUpdate(r.id, { kind: e.target.value })}>
                 {REL_KINDS.map((k) => <option key={k} value={k}>{k}</option>)}
               </select>
               <button className="rel-other" onClick={() => onFocus(otherId)}>
                 <span className="rel-arrow">→</span> {otherName}
                 <span className="rel-kindtag">{otherKind}</span>
               </button>
-              <button className="snap-del" onClick={() => onDelete(r.id)}>×</button>
+              {!readOnly && <button className="snap-del" onClick={() => onDelete(r.id)}>×</button>}
             </div>
             <div className="rel-meta">
               <span>since</span>

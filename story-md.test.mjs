@@ -25,6 +25,8 @@ test("Aevenmere seed round-trips through Markdown wiki files", async () => {
     assert.equal(readBack.characters.length, seed.characters.length);
     assert.equal(readBack.organizations.length, seed.organizations.length);
     assert.equal(readBack.countries.length, seed.countries.length);
+    assert.equal(readBack.narrative.storylines.length, seed.narrative.storylines.length);
+    assert.equal(readBack.narrative.style.tense, seed.narrative.style.tense);
     assert.equal(chapterCount(readBack), chapterCount(seed));
     assert.deepEqual(readBack.events.map((event) => event.id), seed.events.map((event) => event.id));
   } finally {
@@ -76,6 +78,12 @@ test("chapter scene card metadata round-trips through Markdown frontmatter", asy
           status: "outline",
           words: 0,
           povId: "ch_a",
+          storylineIds: ["line_a"],
+          sceneType: "reveal",
+          narrativeFunction: "Expose the ledger's false witness.",
+          tensionLevel: 7,
+          promiseRaised: ["loop_ledger"],
+          promisePaid: [],
           sceneGoal: "Find the missing ledger.",
           conflict: "The witness will only answer in numbers.",
           turn: "The ledger is already blank.",
@@ -94,6 +102,11 @@ test("chapter scene card metadata round-trips through Markdown frontmatter", asy
     const chapter = readBack.library.books[0].volumes[0].chapters[0];
 
     assert.equal(chapter.povId, "ch_a");
+    assert.deepEqual(chapter.storylineIds, ["line_a"]);
+    assert.equal(chapter.sceneType, "reveal");
+    assert.equal(chapter.narrativeFunction, "Expose the ledger's false witness.");
+    assert.equal(chapter.tensionLevel, 7);
+    assert.deepEqual(chapter.promiseRaised, ["loop_ledger"]);
     assert.equal(chapter.sceneGoal, "Find the missing ledger.");
     assert.equal(chapter.conflict, "The witness will only answer in numbers.");
     assert.equal(chapter.turn, "The ledger is already blank.");

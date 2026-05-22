@@ -184,15 +184,77 @@ function renderSceneCard(world, chapter) {
   const pov = chapter.povId ? AVN.findEntity(world, chapter.povId) : null;
   const lines = [
     `POV: ${pov ? pov.name || pov.title : chapter.povId || "—"}`,
+    `Storylines: ${renderChapterStorylines(world, chapter)}`,
+    `Scene type: ${chapter.sceneType || "unset"}`,
+    `Narrative function: ${chapter.narrativeFunction || "unset"}`,
+    `Tension level: ${chapter.tensionLevel || "unset"}`,
     `Scene goal: ${chapter.sceneGoal || "—"}`,
     `Conflict: ${chapter.conflict || "—"}`,
     `Turn: ${chapter.turn || "—"}`,
     `Emotional delta: ${chapter.emotionalDelta || "—"}`,
+    `Promises raised: ${arr(chapter.promiseRaised).join("; ") || "(none)"}`,
+    `Promises paid: ${arr(chapter.promisePaid).join("; ") || "(none)"}`,
     `Continuity notes: ${chapter.continuityNotes || "—"}`,
     `Chapter summary so far: ${chapter.summary || mdSummary(chapter.md, 280) || "—"}`,
     `Style key: ${chapter.styleKey || "match the surrounding chapter voice"}`
   ];
   return lines.join("\n");
+}
+
+function renderChapterStorylines(world, chapter) {
+  const lines = arr(world.narrative?.storylines);
+  const selected = arr(chapter.storylineIds)
+    .map((id) => lines.find((line) => line.id === id))
+    .filter(Boolean);
+  const inferred = !selected.length && chapter.povId
+    ? lines.filter((line) => arr(line.povIds).includes(chapter.povId))
+    : [];
+  const active = selected.length ? selected : inferred;
+  return active.map((line) => {
+    const share = Number(line.targetShare);
+    const pct = Number.isFinite(share) && share > 0 ? ` ${Math.round(share * 100)}%` : "";
+    return `${line.name || line.id}${pct}${line.promise ? " - " + line.promise : ""}`;
+  }).join("; ") || "(none)";
+}
+
+function renderNarrativeDossier(world, chapter) {
+  const narrative = world.narrative || {};
+  const storylines = arr(narrative.storylines);
+  const selectedIds = new Set(arr(chapter.storylineIds));
+  const activeStorylines = storylines.filter((line) => (
+    selectedIds.has(line.id) ||
+    (chapter.povId && arr(line.povIds).includes(chapter.povId))
+  ));
+  const lines = activeStorylines.length
+    ? activeStorylines
+    : storylines.filter((line) => line.role === "main" || line.role === "secondary").slice(0, 4);
+  const focusIds = new Set([chapter.povId, ...arr(chapter.focusIds)].filter(Boolean));
+  const arcs = arr(narrative.characterArcs).filter((arc) => focusIds.has(arc.characterId));
+  const raisedOrPaid = new Set([...arr(chapter.promiseRaised), ...arr(chapter.promisePaid)]);
+  const loops = arr(narrative.openLoops)
+    .filter((loop) => loop.status !== "closed" || raisedOrPaid.has(loop.id))
+    .slice(0, 8);
+  const style = narrative.style || {};
+
+  return [
+    narrative.premise ? `Premise: ${narrative.premise}` : "",
+    arr(narrative.themes).length ? `Themes: ${arr(narrative.themes).join("; ")}` : "",
+    lines.length ? `Storyline balance:\n${lines.map((line) => {
+      const share = Number(line.targetShare);
+      const pct = Number.isFinite(share) && share > 0 ? `${Math.round(share * 100)}%` : "unweighted";
+      return `  ${line.id}: ${line.name || line.id} (${line.role || "supporting"}, target ${pct}) - ${line.currentPressure || line.promise || ""}`;
+    }).join("\n")}` : "",
+    arcs.length ? `Character arcs:\n${arcs.map((arc) => `  ${arc.characterId}: want=${arc.want || "-"}; need=${arc.need || "-"}; lie=${arc.lie || "-"}; stage=${arc.arcStage || "-"}; next=${arc.nextRequiredBeat || "-"}`).join("\n")}` : "",
+    loops.length ? `Open loops:\n${loops.map((loop) => `  ${loop.id}: ${loop.question || ""} (${loop.importance || "minor"}, ${loop.status || "active"}, target ${loop.targetPayoff || "unset"})`).join("\n")}` : "",
+    style.narration || style.tense || style.sentenceRhythm || style.metaphorRules || arr(style.avoid).length ? `Style bible:
+  narration: ${style.narration || "-"}
+  tense: ${style.tense || "-"}
+  rhythm: ${style.sentenceRhythm || "-"}
+  sensory priority: ${arr(style.sensoryPriority).join(", ") || "-"}
+  metaphor rules: ${style.metaphorRules || "-"}
+  dialogue: ${style.dialogue || "-"}
+  avoid: ${arr(style.avoid).join(", ") || "-"}` : ""
+  ].filter(Boolean).join("\n");
 }
 
 function renderRelatedChapters(frame) {
@@ -261,6 +323,7 @@ function buildWritingContext(world, chapter, bookArg, volumeArg) {
       `Volume: ${volume.title || "—"}${volume.subtitle ? " — " + volume.subtitle : ""}`
     ].join("\n"),
     scene: renderSceneCard(world, chapter),
+    narrative: renderNarrativeDossier(world, chapter),
     canon: renderWorldDossier(world, chapter),
     focus: renderFocusDossier(world, chapter),
     neighboringChapters: renderRelatedChapters(frame)
@@ -273,6 +336,9 @@ ${sections.story}
 
 SCENE CARD
 ${sections.scene}
+
+NARRATIVE BLUEPRINT
+${sections.narrative || "(none)"}
 
 CANON CONTEXT
 ${sections.canon}

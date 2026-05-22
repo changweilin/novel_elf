@@ -7,6 +7,10 @@
     return prefix + "_" + Math.random().toString(36).slice(2, 8);
   }
 
+  function wsT(source) {
+    return window.AEVEN_I18N?.t ? window.AEVEN_I18N.t(source) : source;
+  }
+
   function useAevenmereWorkspace(options = {}) {
     const { afterEntityCreated, getEventPlaceId } = options;
     const seedWorld = useMemo(() => window.StoryStore.normalizeWorld(window.WORLD_SEED), []);
@@ -47,7 +51,12 @@
       countries: world.countries.length
     };
 
-    const canUseStoryApi = storeMode === "api";
+    const runtime = window.NovelElfRuntime || {};
+    const readOnly = runtime.readOnly === true || runtime.publicDemo === true;
+    const publicDemo = runtime.publicDemo === true;
+    const aiAvailable = !readOnly && runtime.aiEnabled !== false;
+    const canUseStoryApi = !readOnly && storeMode === "api";
+    const writableSetWorld = readOnly ? (() => {}) : setWorld;
 
     useEffect(() => {
       let alive = true;
@@ -60,7 +69,7 @@
           setStoreMode(loaded.mode);
           setStoryError(loaded.error ? String(loaded.error.message || loaded.error) : null);
           setStoryReady(true);
-          setStoryStatus(loaded.mode === "api" ? "ready" : "static");
+          setStoryStatus(loaded.mode === "api" ? "ready" : loaded.mode === "demo" ? "demo" : "static");
         })
         .catch((error) => {
           if (!alive) return;
@@ -73,7 +82,7 @@
     }, [seedWorld]);
 
     useEffect(() => {
-      if (!storyReady || !activeStory) return;
+      if (!storyReady || !activeStory || readOnly) return;
       const timer = window.setTimeout(() => {
         setStoryStatus(storeMode === "api" ? "saving" : "static");
         window.StoryStore.saveWorld(activeStory.id, world, storeMode)
@@ -136,8 +145,9 @@
     }
 
     async function onCreateStory() {
+      if (readOnly) return;
       if (!storyReady) return;
-      const title = prompt("Name this new story", "Untitled Story");
+      const title = prompt(wsT("Name this new story"), wsT("Untitled Story"));
       if (!title) return;
       setStoryStatus("loading");
       try {
@@ -153,8 +163,9 @@
     }
 
     async function onDuplicateStory() {
+      if (readOnly) return;
       if (!storyReady || !activeStory) return;
-      const title = prompt("Name the duplicate story", `${world.name} Copy`);
+      const title = prompt(wsT("Name the duplicate story"), `${world.name} ${wsT("Copy")}`);
       if (!title) return;
       setStoryStatus("loading");
       try {
@@ -170,8 +181,9 @@
     }
 
     async function onRenameStory() {
+      if (readOnly) return;
       if (!storyReady || !activeStory) return;
-      const name = prompt("Rename this story", world.name);
+      const name = prompt(wsT("Rename this story"), world.name);
       if (!name || name === world.name) return;
       setStoryStatus("saving");
       try {
@@ -187,8 +199,9 @@
     }
 
     async function onArchiveStory() {
+      if (readOnly) return;
       if (!storyReady || !activeStory) return;
-      if (!confirm(`Archive "${world.name}"? Its Markdown files will move into stories/_archived.`)) return;
+      if (!confirm(`${wsT("Archive")} "${world.name}"? ${wsT("Its Markdown files will move into stories/_archived.")}`)) return;
       setStoryStatus("loading");
       try {
         const archived = await window.StoryStore.archiveStory(activeStory.id, storeMode);
@@ -198,7 +211,7 @@
           const loaded = await window.StoryStore.loadStory(remaining[0].id, storeMode);
           applyLoadedStory(loaded);
         } else {
-          const created = await window.StoryStore.createStory({ title: "Untitled Story" }, storeMode);
+          const created = await window.StoryStore.createStory({ title: wsT("Untitled Story") }, storeMode);
           setStories(created.stories || []);
           applyLoadedStory(created);
         }
@@ -220,9 +233,10 @@
     }
 
     async function onImportStoryFile(file) {
+      if (readOnly) return;
       if (!storyReady || !file) return;
       const defaultTitle = window.StoryStore.storyTitleFromFileName(file.name);
-      const title = prompt("Name this imported story", defaultTitle);
+      const title = prompt(wsT("Name this imported story"), defaultTitle);
       if (!title) return;
       setStoryStatus("loading");
       try {
@@ -239,6 +253,7 @@
     }
 
     function setEnt(key, id, patch) {
+      if (readOnly) return;
       setWorld((value) => ({
         ...value,
         [key]: (value[key] || []).map((entity) => entity.id === id ? { ...entity, ...patch } : entity)
@@ -246,6 +261,7 @@
     }
 
     function delEnt(key, id) {
+      if (readOnly) return;
       setWorld((value) => ({
         ...value,
         [key]: (value[key] || []).filter((entity) => entity.id !== id)
@@ -264,14 +280,17 @@
     function snapMutator(key) {
       return {
         add: (id, snap) => {
+          if (readOnly) return;
           const ent = (world[key] || []).find((entity) => entity.id === id);
           if (ent) setEnt(key, id, { snapshots: [...(ent.snapshots || []), snap] });
         },
         update: (id) => (oldSnap, patch) => {
+          if (readOnly) return;
           const ent = (world[key] || []).find((entity) => entity.id === id);
           if (ent) setEnt(key, id, { snapshots: (ent.snapshots || []).map((snap) => snap === oldSnap ? { ...snap, ...patch } : snap) });
         },
         del: (id) => (snap) => {
+          if (readOnly) return;
           const ent = (world[key] || []).find((entity) => entity.id === id);
           if (ent) setEnt(key, id, { snapshots: (ent.snapshots || []).filter((item) => item !== snap) });
         }
@@ -289,6 +308,7 @@
     }
 
     function addRel(entityId) {
+      if (readOnly) return;
       const candidates = [...world.characters, ...world.organizations, ...world.countries].filter((entity) => entity.id !== entityId);
       const other = candidates[0];
       if (!other) return;
@@ -304,9 +324,11 @@
     }
 
     const updateRel = (id, patch) => {
+      if (readOnly) return;
       setWorld((value) => ({ ...value, relationships: (value.relationships || []).map((rel) => rel.id === id ? { ...rel, ...patch } : rel) }));
     };
     const deleteRel = (id) => {
+      if (readOnly) return;
       setWorld((value) => ({ ...value, relationships: (value.relationships || []).filter((rel) => rel.id !== id) }));
     };
 
@@ -316,6 +338,7 @@
     }
 
     function addBlankEvent() {
+      if (readOnly) return;
       const id = uid("ev");
       const sourceRefs = sourceRefsForNewRecord();
       setWorld((value) => ({
@@ -326,6 +349,7 @@
     }
 
     function addBlankChar(originRegionId = null) {
+      if (readOnly) return;
       const id = uid("ch");
       const sourceRefs = sourceRefsForNewRecord();
       setWorld((value) => ({
@@ -348,6 +372,7 @@
     }
 
     function addBlankOrg() {
+      if (readOnly) return;
       const id = uid("or");
       const sourceRefs = sourceRefsForNewRecord();
       setWorld((value) => ({
@@ -369,6 +394,7 @@
     }
 
     function addBlankCountry() {
+      if (readOnly) return;
       const id = uid("co");
       const sourceRefs = sourceRefsForNewRecord();
       setWorld((value) => ({
@@ -400,6 +426,10 @@
     }
 
     async function onAI(kind) {
+      if (!aiAvailable || typeof window.claude?.complete !== "function") {
+        setErr(readOnly ? "AI writing is available in the local workspace." : "AI runtime is not available in this browser.");
+        return;
+      }
       setBusy(kind);
       setErr(null);
       try {
@@ -455,6 +485,10 @@
     }
 
     async function onAIFill(kind, id) {
+      if (!aiAvailable || typeof window.claude?.complete !== "function") {
+        setErr(readOnly ? "AI writing is available in the local workspace." : "AI runtime is not available in this browser.");
+        return;
+      }
       setBusy("fill");
       setErr(null);
       try {
@@ -497,6 +531,7 @@
     }
 
     function onReset() {
+      if (readOnly) return;
       if (!confirm(window.AEVEN_I18N?.t("Re-cast the world to its original seed? Edits will be lost.") || "Re-cast the world to its original seed? Edits will be lost.")) return;
       const fresh = window.StoryStore.normalizeWorld({ ...window.WORLD_SEED, storyId: activeStory?.id || "aevenmere" });
       setWorld(fresh);
@@ -510,12 +545,12 @@
 
     return {
       state: {
-        world, setWorld,
+        world, setWorld: writableSetWorld,
         stories, activeStory, storyReady, storeMode, storyStatus, storyError,
         currentYear, setCurrentYear,
         folio, setFolio,
         focusId, setFocusId,
-        currentEra, canUseStoryApi
+        currentEra, canUseStoryApi, readOnly, publicDemo, aiAvailable
       },
       sourceState: {
         sourceRange, setSourceRange,

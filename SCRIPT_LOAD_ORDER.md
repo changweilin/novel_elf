@@ -4,7 +4,7 @@ Novel Elf currently runs as static HTML with React UMD bundles and in-browser Ba
 
 ## Entry Points
 
-- `index.html` is the deployment landing page. It loads `viewport-router.js` first so width-based redirects and `?view=` overrides happen before the user interacts with the page.
+- `index.html` is the deployment landing page. It loads `viewport-router.js` first so width-based redirects and `?view=` overrides happen before the user interacts with the page, then `runtime-config.js` so public/local mode is known before shared app code runs.
 - `Aevenmere Atelier.html` is the desktop app entry. It declares `data-current="desktop"` on `viewport-router.js`.
 - `Aevenmere Atelier - Mobile.html` is the mobile showcase entry. It declares `data-current="mobile"` on `viewport-router.js`.
 
@@ -18,17 +18,22 @@ Desktop and mobile app entries load these CDN scripts before any local `text/bab
 
 All local `.jsx` files depend on Babel standalone being present. The production console may show Babel's standalone warning while this architecture remains in place; that warning is expected for the current static prototype, not a signal that app boot failed.
 
+## Runtime Mode
+
+Load `runtime-config.js` before the shared data/core block. The repository copy defaults to local workspace mode. `npm run build:pages` copies the static site into `dist/` and overwrites this file so GitHub Pages runs as a read-only public demo with API and AI helpers disabled.
+
 ## Shared Data And Core
 
 Load the non-Babel local scripts in this order before any UI component:
 
-1. `i18n.js`
-2. `data.js`
-3. `core.js`
-4. `story-import.js`
-5. `story-store.js`
-6. `draw.js`
-7. `ai.js`
+1. `runtime-config.js`
+2. `i18n.js`
+3. `data.js`
+4. `core.js`
+5. `story-import.js`
+6. `story-store.js`
+7. `draw.js`
+8. `ai.js`
 
 These scripts establish localization, seed data, world helpers, import helpers, persistence, canvas drawing helpers, and AI helper globals. `workspace-state.jsx` assumes this foundation exists.
 

@@ -116,7 +116,56 @@ function BookCard({ book, onOpen }) {
 }
 
 // ── Bookshelf ──────────────────────────────────────────────────
-function Shelf({ books, onOpen, onNew }) {
+function chapterListForBooks(books) {
+  return (books || []).flatMap((book) => (
+    (book.volumes || []).flatMap((volume) => (
+      (volume.chapters || []).map((chapter) => ({ book, volume, chapter }))
+    ))
+  ));
+}
+
+function NarrativeBalance({ world }) {
+  const storylines = world.narrative?.storylines || [];
+  if (!storylines.length) return null;
+  const chapters = chapterListForBooks(world.library?.books || []);
+  const totalWords = chapters.reduce((sum, item) => sum + (Number(item.chapter.words) || 0), 0);
+  const rows = storylines.map((line) => {
+    const matching = chapters.filter((item) => (item.chapter.storylineIds || []).includes(line.id));
+    const words = matching.reduce((sum, item) => sum + (Number(item.chapter.words) || 0), 0);
+    const actualShare = totalWords > 0 ? words / totalWords : 0;
+    return { line, chapters: matching.length, words, actualShare };
+  });
+
+  return (
+    <section className="narrative-balance">
+      <div className="narrative-balance-head">
+        <span>Narrative Balance</span>
+        <em>{chapters.length} chapters tracked</em>
+      </div>
+      <div className="narrative-balance-grid">
+        {rows.map(({ line, chapters, words, actualShare }) => {
+          const target = Number(line.targetShare) || 0;
+          const actualPct = Math.round(actualShare * 100);
+          const targetPct = Math.round(target * 100);
+          return (
+            <div key={line.id} className="narrative-line-row">
+              <div className="narrative-line-copy">
+                <strong>{line.name}</strong>
+                <span>{line.role || "supporting"} · target {targetPct || "?"}% · actual {actualPct}% · {chapters} ch · {words.toLocaleString()} w</span>
+              </div>
+              <div className="narrative-meter" aria-hidden="true">
+                <i style={{ width: `${Math.min(100, actualPct)}%` }} />
+                {targetPct > 0 && <b style={{ left: `${Math.min(100, targetPct)}%` }} />}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+function Shelf({ books, onOpen, onNew, readOnly, world }) {
   const total = books.length;
   const inProgress = books.filter((b) => b.status === "in-progress" || b.status === "draft").length;
   return (
@@ -132,23 +181,26 @@ function Shelf({ books, onOpen, onNew }) {
           <span className="book-info-pill accent">{inProgress} on the writing desk</span>
         </div>
       </header>
+      <NarrativeBalance world={world} />
       <div className="shelf-grid">
         {books.map((b) => <BookCard key={b.id} book={b} onOpen={onOpen} />)}
-        <button className="book-card" onClick={onNew}>
-          <div className="book-cover is-empty">
-            <div className="book-tag">— new —</div>
-            <div className="book-title" style={{ color: "var(--slate)" }}>An empty book</div>
-            <div className="book-sub" style={{ color: "var(--slate)" }}>awaiting a first leaf</div>
-          </div>
-          <div className="book-meta"><span className="book-empty-label">+ begin a new book</span></div>
-        </button>
+        {!readOnly && (
+          <button className="book-card" onClick={onNew}>
+            <div className="book-cover is-empty">
+              <div className="book-tag">— new —</div>
+              <div className="book-title" style={{ color: "var(--slate)" }}>An empty book</div>
+              <div className="book-sub" style={{ color: "var(--slate)" }}>awaiting a first leaf</div>
+            </div>
+            <div className="book-meta"><span className="book-empty-label">+ begin a new book</span></div>
+          </button>
+        )}
       </div>
     </div>
   );
 }
 
 // ── Book view ─────────────────────────────────────────────────
-function BookView({ book, onOpenChapter, onBack, onAddChapter, world, currentYear }) {
+function BookView({ book, onOpenChapter, onBack, onAddChapter, world, currentYear, readOnly }) {
   const chapCount = (book.volumes || []).reduce((s, v) => s + (v.chapters?.length || 0), 0);
   const drafted = (book.volumes || []).reduce((s, v) => s + (v.chapters || []).filter((c) => c.status !== "outline").length, 0);
   const wordCount = (book.volumes || []).reduce((s, v) => s + (v.chapters || []).reduce((ss, c) => ss + (c.words || 0), 0), 0);
@@ -193,7 +245,7 @@ function BookView({ book, onOpenChapter, onBack, onAddChapter, world, currentYea
                   </button>
                 );
               })}
-              <button className="toc-add" onClick={() => onAddChapter(book.id, vol.id)}>+ new chapter</button>
+              {!readOnly && <button className="toc-add" onClick={() => onAddChapter(book.id, vol.id)}>+ new chapter</button>}
             </div>
           ))}
         </div>
@@ -203,13 +255,16 @@ function BookView({ book, onOpenChapter, onBack, onAddChapter, world, currentYea
 }
 
 // ── Library shell ─────────────────────────────────────────────
-function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
+function Library({ world, setWorld, currentYear, onJump, onFocus, focusId, readOnly, aiAvailable }) {
   // route: { view: 'shelf'|'book'|'chapter', bookId, volumeId, chapterId }
   const [route, setRoute] = useStateLib(() => {
     try { const raw = localStorage.getItem("aevenmere.lib.route"); if (raw) return JSON.parse(raw); } catch {}
     return { view: "shelf" };
   });
-  React.useEffect(() => { try { localStorage.setItem("aevenmere.lib.route", JSON.stringify(route)); } catch {} }, [route]);
+  React.useEffect(() => {
+    if (window.NovelElfRuntime?.storageEnabled === false) return;
+    try { localStorage.setItem("aevenmere.lib.route", JSON.stringify(route)); } catch {}
+  }, [route]);
 
   const books = world.library?.books || [];
   const book = useMemoLib(() => books.find((b) => b.id === route.bookId), [books, route.bookId]);
@@ -218,6 +273,7 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
 
   // ── Mutators ──
   const updateChapter = (patch) => {
+    if (readOnly) return;
     if (!route.bookId || !route.volumeId || !route.chapterId) return;
     setWorld((w) => ({
       ...w,
@@ -235,12 +291,19 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
   };
 
   const addChapter = (bookId, volumeId) => {
+    if (readOnly) return;
     const id = "ch_" + Math.random().toString(36).slice(2, 7);
     const newChap = {
       id, title: "An untitled chapter", year: currentYear,
       placeId: null, focusIds: [], eventIds: [],
       status: "outline", words: 0,
       povId: null,
+      storylineIds: [],
+      sceneType: "setup",
+      narrativeFunction: "",
+      tensionLevel: 3,
+      promiseRaised: [],
+      promisePaid: [],
       sceneGoal: "",
       conflict: "",
       turn: "",
@@ -265,6 +328,7 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
   };
 
   const addBook = () => {
+    if (readOnly) return;
     const id = "bk_" + Math.random().toString(36).slice(2, 6);
     const accents = ["#c89859", "#8a2f2a", "#6b8a7a", "#4a8a9a", "#7a4a9c"];
     const motifs = ["compass", "sigil", "banner", "leaf", "tide"];
@@ -318,6 +382,8 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
           onBack={() => setRoute({ view: "book", bookId: book.id })}
           onFocus={onFocus}
           onJump={onJump}
+          readOnly={readOnly}
+          aiAvailable={aiAvailable}
         />
       </div>
     );
@@ -332,6 +398,7 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
           onOpenChapter={(bookId, volumeId, chapterId) => setRoute({ view: "chapter", bookId, volumeId, chapterId })}
           onAddChapter={addChapter}
           onBack={() => setRoute({ view: "shelf" })}
+          readOnly={readOnly}
         />
       </div>
     );
@@ -340,7 +407,7 @@ function Library({ world, setWorld, currentYear, onJump, onFocus, focusId }) {
   return (
     <div className="library">
       {crumbs()}
-      <Shelf books={books} onOpen={(id) => setRoute({ view: "book", bookId: id })} onNew={addBook} />
+      <Shelf books={books} world={world} onOpen={(id) => setRoute({ view: "book", bookId: id })} onNew={addBook} readOnly={readOnly} />
     </div>
   );
 }

@@ -228,6 +228,105 @@ window.WORLD_SEED = {
     { id: "rl_10", a: "ch_cart", b: "ch_veshra", kind: "rival", since: 1144, until: 1178, note: "Met once in the forges. Twice in the fires." }
   ],
 
+  narrative: {
+    premise: "A cartographer arrives with a pre-Sundering map, forcing tide-counters, heirs, and old fire cult records to decide which version of Aevenmere is allowed to become true.",
+    themes: ["memory as territory", "maps as political weapons", "inheritance versus chosen duty"],
+    storylines: [
+      {
+        id: "line_map",
+        name: "The Map Before the Sundering",
+        role: "main",
+        targetShare: 0.45,
+        povIds: ["ch_cart", "ch_miorra"],
+        promise: "The map can reveal a version of the Reach that powerful houses need buried.",
+        currentPressure: "Brackhold must decide whether the stranger is a witness, a fraud, or a returning wound.",
+        actShares: [
+          { act: "vol_b1", targetShare: 0.62 },
+          { act: "vol_b2", targetShare: 0.35 }
+        ]
+      },
+      {
+        id: "line_heir",
+        name: "The Half-Sky Inheritance",
+        role: "secondary",
+        targetShare: 0.3,
+        povIds: ["ch_edrun"],
+        promise: "Edrun's legitimacy depends on a history the map may disprove.",
+        currentPressure: "A raven and a seal from Brackhold pull him away from Cael Vaer."
+      },
+      {
+        id: "line_burning",
+        name: "The Burning Years Echo",
+        role: "shadow",
+        targetShare: 0.25,
+        povIds: ["ch_veshra"],
+        promise: "The old fires did not end cleanly; their survivors still shape the present.",
+        currentPressure: "Veshra is officially dead, but the map remembers her route through the Wastes."
+      }
+    ],
+    characterArcs: [
+      {
+        characterId: "ch_miorra",
+        want: "Keep the tide-count honest and local.",
+        need: "Accept that Brackhold's truth can change the whole Reach.",
+        lie: "Counting accurately is the same as staying neutral.",
+        arcStage: "called_out_of_witness",
+        nextRequiredBeat: "She must choose whether to hide or repeat the stranger's impossible count."
+      },
+      {
+        characterId: "ch_edrun",
+        want: "Hold Vaelora together long enough to inherit it.",
+        need: "Admit legitimacy can come from repair rather than blood.",
+        lie: "If the documents are clean, the realm will obey.",
+        arcStage: "protected_by_office",
+        nextRequiredBeat: "He receives evidence that his title rests on a map nobody can authenticate."
+      },
+      {
+        characterId: "ch_cart",
+        want: "Make the old map believed before its ink changes.",
+        need: "Tell someone what the seventh fold will cost.",
+        lie: "A correct map can save people without asking them to choose.",
+        arcStage: "withholding_the_cost",
+        nextRequiredBeat: "She lets Miorra see one fold that should be blank."
+      }
+    ],
+    openLoops: [
+      {
+        id: "loop_seventh_fold",
+        raisedIn: "ch_b1_1",
+        question: "What appears on the map's seventh fold?",
+        importance: "major",
+        targetPayoff: "vol_b1",
+        status: "active"
+      },
+      {
+        id: "loop_raven_seal",
+        raisedIn: "ch_b2_1",
+        question: "Why does Threa's seal matter to Edrun?",
+        importance: "major",
+        targetPayoff: "vol_b2",
+        status: "active"
+      },
+      {
+        id: "loop_veshra_route",
+        raisedIn: "ch_burn_1_1",
+        question: "How did Veshra leave a route on a map made before her life?",
+        importance: "shadow",
+        targetPayoff: "bk_burning",
+        status: "active"
+      }
+    ],
+    style: {
+      narration: "close third, restrained, image-led",
+      tense: "present",
+      sentenceRhythm: "short pressure sentences during discovery; longer tactile sentences during aftermath",
+      sensoryPriority: ["touch", "sound", "smell"],
+      metaphorRules: "Metaphors should come from tide, slate, vellum, coal, salt, brass, debt, wet stone.",
+      avoid: ["chosen one phrasing", "generic prophecy language", "ancient evil", "purple mist", "destiny declares"],
+      dialogue: "status-aware and indirect; characters rarely name the actual wound aloud"
+    }
+  },
+
   // ─────────────────────────────────────────────────────────────────────
   // The Library — books, volumes, chapters, illustrations.
   // Each chapter is markdown; chapter.focusIds / eventIds / placeId tie
@@ -255,6 +354,12 @@ window.WORLD_SEED = {
                 year: 1209, placeId: "pl_brackhold",
                 focusIds: ["ch_cart", "ch_miorra"],
                 eventIds: ["ev_arrival"],
+                storylineIds: ["line_map"],
+                sceneType: "setup",
+                narrativeFunction: "Raise the impossible map and bind Miorra to the stranger's count.",
+                tensionLevel: 6,
+                promiseRaised: ["loop_seventh_fold"],
+                promisePaid: [],
                 status: "draft",
                 words: 412,
                 md: `# The Stranger at the Dock
@@ -297,6 +402,12 @@ The stranger folds the vellum once, twice, three times into a square no larger t
                 year: 1209, placeId: "pl_brackhold",
                 focusIds: ["ch_miorra", "ch_cart"],
                 eventIds: [],
+                storylineIds: ["line_map"],
+                sceneType: "reveal",
+                narrativeFunction: "Move the map mystery from public arrival into Tide-Counter records.",
+                tensionLevel: 5,
+                promiseRaised: [],
+                promisePaid: [],
                 status: "draft",
                 words: 287,
                 md: `# What the Tide Counts Back
@@ -322,6 +433,12 @@ Threa is the oldest of them. Threa was old when Miorra's mother was a girl.
                 year: 1209, placeId: "pl_brackhold",
                 focusIds: ["ch_cart"],
                 eventIds: [],
+                storylineIds: ["line_map"],
+                sceneType: "reveal",
+                narrativeFunction: "Expose the seventh fold and let the first royal consequence enter.",
+                tensionLevel: 7,
+                promiseRaised: ["loop_raven_seal"],
+                promisePaid: [],
                 status: "outline",
                 words: 0,
                 md: `# The Map's Seventh Fold
@@ -347,6 +464,12 @@ Threa is the oldest of them. Threa was old when Miorra's mother was a girl.
                 year: 1209, placeId: "pl_caelvaer",
                 focusIds: ["ch_edrun"],
                 eventIds: [],
+                storylineIds: ["line_heir"],
+                sceneType: "setup",
+                narrativeFunction: "Shift the map's pressure to Cael Vaer and Edrun's legitimacy problem.",
+                tensionLevel: 5,
+                promiseRaised: ["loop_raven_seal"],
+                promisePaid: [],
                 status: "outline",
                 words: 0,
                 md: `# The Raven That Will Not Leave
@@ -364,6 +487,12 @@ Threa is the oldest of them. Threa was old when Miorra's mother was a girl.
                 year: 1209, placeId: "pl_caelvaer",
                 focusIds: ["ch_edrun"],
                 eventIds: [],
+                storylineIds: ["line_heir"],
+                sceneType: "turn",
+                narrativeFunction: "Force Edrun to choose between defending the title and following the evidence.",
+                tensionLevel: 6,
+                promiseRaised: [],
+                promisePaid: [],
                 status: "outline",
                 words: 0,
                 md: `# What the Half-Sky Inherits
@@ -395,6 +524,9 @@ Threa is the oldest of them. Threa was old when Miorra's mother was a girl.
             chapters: [
               { id: "ch_burn_1_1", title: "The First Sparks", year: 1100, placeId: "pl_coalmouth",
                 focusIds: ["ch_veshra"], eventIds: ["ev_burn"],
+                storylineIds: ["line_burning"], sceneType: "setup",
+                narrativeFunction: "Establish the old fire doctrine that will later distort the map.",
+                tensionLevel: 6, promiseRaised: ["loop_veshra_route"], promisePaid: [],
                 status: "outline", words: 0,
                 md: "# The First Sparks\n\n*[outline]* The forges of Coalmouth at the eve.",
                 illustrations: [] }

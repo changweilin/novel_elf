@@ -14,6 +14,16 @@
   ];
   const LANG_CODES = new Set(LANGS.map((l) => l.code));
   const FALLBACK = "en";
+  const LANGUAGE_NAMES = {
+    "zh-Hant": { "zh-Hant": "繁體中文", en: "英文", ja: "日文", ko: "韓文", de: "德文", fr: "法文", it: "義大利文", es: "西班牙文" },
+    en: { "zh-Hant": "Traditional Chinese", en: "English", ja: "Japanese", ko: "Korean", de: "German", fr: "French", it: "Italian", es: "Spanish" },
+    ja: { "zh-Hant": "繁体字中国語", en: "英語", ja: "日本語", ko: "韓国語", de: "ドイツ語", fr: "フランス語", it: "イタリア語", es: "スペイン語" },
+    ko: { "zh-Hant": "번체 중국어", en: "영어", ja: "일본어", ko: "한국어", de: "독일어", fr: "프랑스어", it: "이탈리아어", es: "스페인어" },
+    de: { "zh-Hant": "Traditionelles Chinesisch", en: "Englisch", ja: "Japanisch", ko: "Koreanisch", de: "Deutsch", fr: "Französisch", it: "Italienisch", es: "Spanisch" },
+    fr: { "zh-Hant": "chinois traditionnel", en: "anglais", ja: "japonais", ko: "coréen", de: "allemand", fr: "français", it: "italien", es: "espagnol" },
+    it: { "zh-Hant": "cinese tradizionale", en: "inglese", ja: "giapponese", ko: "coreano", de: "tedesco", fr: "francese", it: "italiano", es: "spagnolo" },
+    es: { "zh-Hant": "chino tradicional", en: "inglés", ja: "japonés", ko: "coreano", de: "alemán", fr: "francés", it: "italiano", es: "español" }
+  };
   const phrases = new Map();
   const reversePhrases = new Map();
 
@@ -30,6 +40,15 @@
 
   function addLabel(source, zh, en, ja, ko, de, fr, it, es) {
     add(source, { "zh-Hant": zh, en, ja, ko, de, fr, it, es });
+  }
+
+  function languageName(code, lang = currentLang) {
+    const meta = LANGS.find((item) => item.code === code);
+    return LANGUAGE_NAMES[lang]?.[code] || LANGUAGE_NAMES[FALLBACK]?.[code] || meta?.name || code;
+  }
+
+  function languageOptionLabel(langMeta, uiLang = currentLang) {
+    return `${langMeta.short} · ${languageName(langMeta.code, uiLang)}`;
   }
 
   addLabel("The Atelier of Aevenmere", "艾文米爾工坊", "The Atelier of Aevenmere", "アイヴンミアの工房", "에이븐미어 작업실", "Das Atelier von Aevenmere", "L'Atelier d'Aevenmere", "L'Atelier di Aevenmere", "El Atelier de Aevenmere");
@@ -83,6 +102,144 @@
   addLabel("Desktop", "桌面版", "Desktop", "デスクトップ", "데스크톱", "Desktop", "Bureau", "Desktop", "Escritorio");
   addLabel("Mobile", "手機版", "Mobile", "モバイル", "모바일", "Mobil", "Mobile", "Mobile", "Móvil");
   addLabel("Language", "語言", "Language", "言語", "언어", "Sprache", "Langue", "Lingua", "Idioma");
+
+  addLabel("Director's Desk", "導演桌", "Director's Desk", "ディレクター卓", "디렉터 데스크", "Regiepult", "Bureau de réalisation", "Banco regia", "Mesa de dirección");
+  addLabel("Director", "導演", "Director", "ディレクター", "디렉터", "Regie", "Réalisation", "Regia", "Dirección");
+  addLabel("About Me", "關於我", "About Me", "自己紹介", "소개", "Über mich", "À propos", "Chi sono", "Sobre mí");
+  addLabel("About", "關於", "About", "概要", "소개", "Über", "À propos", "Info", "Acerca de");
+  addLabel("IV Director", "IV 導演", "IV Director", "IV ディレクター", "IV 디렉터", "IV Regie", "IV Réalisation", "IV Regia", "IV Dirección");
+  addLabel("V About", "V 關於", "V About", "V 概要", "V 소개", "V Über", "V À propos", "V Info", "V Acerca de");
+
+  addLabel("Story wiki", "故事 Wiki", "Story wiki", "物語Wiki", "스토리 위키", "Story-Wiki", "wiki d'histoire", "wiki storia", "wiki de historia");
+  addLabel("New", "新增", "New", "新規", "새로 만들기", "Neu", "Nouveau", "Nuovo", "Nuevo");
+  addLabel("Import", "匯入", "Import", "読み込み", "가져오기", "Importieren", "Importer", "Importa", "Importar");
+  addLabel("Template", "範本", "Template", "テンプレート", "템플릿", "Vorlage", "Modèle", "Modello", "Plantilla");
+  addLabel("Duplicate", "複製", "Duplicate", "複製", "복제", "Duplizieren", "Dupliquer", "Duplica", "Duplicar");
+  addLabel("Rename", "重新命名", "Rename", "名前変更", "이름 바꾸기", "Umbenennen", "Renommer", "Rinomina", "Renombrar");
+  addLabel("Archive", "封存", "Archive", "アーカイブ", "보관", "Archivieren", "Archiver", "Archivia", "Archivar");
+  addLabel("Format", "格式", "Format", "形式", "형식", "Format", "Format", "Formato", "Formato");
+  addLabel("Copy", "副本", "Copy", "コピー", "복사본", "Kopie", "Copie", "Copia", "Copia");
+  addLabel("Name", "名稱", "Name", "名前", "이름", "Name", "Nom", "Nome", "Nombre");
+  addLabel("Untitled Story", "未命名故事", "Untitled Story", "無題の物語", "제목 없는 이야기", "Unbenannte Story", "Histoire sans titre", "Storia senza titolo", "Historia sin título");
+  addLabel("Name this new story", "命名這個新故事", "Name this new story", "新しい物語に名前を付ける", "새 이야기 이름 짓기", "Neue Story benennen", "Nommer cette nouvelle histoire", "Dai un nome alla nuova storia", "Nombrar esta nueva historia");
+  addLabel("Name the duplicate story", "命名複製故事", "Name the duplicate story", "複製した物語に名前を付ける", "복제한 이야기 이름 짓기", "Duplizierte Story benennen", "Nommer l'histoire dupliquée", "Dai un nome alla copia", "Nombrar la historia duplicada");
+  addLabel("Rename this story", "重新命名這個故事", "Rename this story", "この物語の名前を変更", "이 이야기 이름 바꾸기", "Diese Story umbenennen", "Renommer cette histoire", "Rinomina questa storia", "Renombrar esta historia");
+  addLabel("Name this imported story", "命名匯入故事", "Name this imported story", "読み込んだ物語に名前を付ける", "가져온 이야기 이름 짓기", "Importierte Story benennen", "Nommer l'histoire importée", "Dai un nome alla storia importata", "Nombrar la historia importada");
+  addLabel("Its Markdown files will move into stories/_archived.", "它的 Markdown 檔案會移到 stories/_archived。", "Its Markdown files will move into stories/_archived.", "Markdownファイルは stories/_archived に移動します。", "Markdown 파일이 stories/_archived로 이동합니다.", "Die Markdown-Dateien werden nach stories/_archived verschoben.", "Ses fichiers Markdown seront déplacés dans stories/_archived.", "I file Markdown verranno spostati in stories/_archived.", "Sus archivos Markdown se moverán a stories/_archived.");
+
+  addLabel("saving", "儲存中", "saving", "保存中", "저장 중", "speichert", "enregistrement", "salvataggio", "guardando");
+  addLabel("saved", "已儲存", "saved", "保存済み", "저장됨", "gespeichert", "enregistré", "salvato", "guardado");
+  addLabel("loading", "載入中", "loading", "読み込み中", "불러오는 중", "lädt", "chargement", "caricamento", "cargando");
+  addLabel("ready", "就緒", "ready", "準備完了", "준비됨", "bereit", "prêt", "pronto", "listo");
+  addLabel("static", "靜態", "static", "静的", "정적", "statisch", "statique", "statico", "estático");
+  addLabel("static fallback", "靜態備援", "static fallback", "静的フォールバック", "정적 대체", "statischer Fallback", "secours statique", "fallback statico", "respaldo estático");
+  addLabel("public demo", "公開展示", "public demo", "公開デモ", "공개 데모", "öffentliche Demo", "démo publique", "demo pubblica", "demo pública");
+  addLabel("demo", "展示", "demo", "デモ", "데모", "Demo", "démo", "demo", "demo");
+  addLabel("error", "錯誤", "error", "エラー", "오류", "Fehler", "erreur", "errore", "error");
+  addLabel("markdown wiki", "Markdown Wiki", "markdown wiki", "Markdown Wiki", "Markdown 위키", "Markdown-Wiki", "wiki Markdown", "wiki Markdown", "wiki Markdown");
+  addLabel("Public demo / local AI disabled", "公開展示 / 本機 AI 已停用", "Public demo / local AI disabled", "公開デモ / ローカルAIは無効", "공개 데모 / 로컬 AI 비활성화", "Öffentliche Demo / lokale KI deaktiviert", "démo publique / IA locale désactivée", "demo pubblica / IA locale disattivata", "demo pública / IA local desactivada");
+
+  addLabel("Source", "來源", "Source", "出典", "출처", "Quelle", "Source", "Fonte", "Fuente");
+  addLabel("Source range", "來源範圍", "Source range", "出典範囲", "출처 범위", "Quellenbereich", "Plage de sources", "Intervallo fonti", "Rango de fuentes");
+  addLabel("All sources", "全部來源", "All sources", "すべての出典", "모든 출처", "Alle Quellen", "Toutes les sources", "Tutte le fonti", "Todas las fuentes");
+  addLabel("No chapter sources yet", "尚無章節來源", "No chapter sources yet", "章の出典はまだありません", "아직 장 출처 없음", "Noch keine Kapitelquellen", "Aucune source de chapitre", "Nessuna fonte capitolo", "Aún no hay fuentes de capítulo");
+  addLabel("No chapter sources", "無章節來源", "No chapter sources", "章の出典なし", "장 출처 없음", "Keine Kapitelquellen", "Aucune source de chapitre", "Nessuna fonte capitolo", "Sin fuentes de capítulo");
+  addLabel("entire canon", "完整正典", "entire canon", "全正史", "전체 정본", "gesamter Kanon", "canon entier", "intero canone", "canon completo");
+  addLabel("from", "自", "from", "開始", "시작", "von", "de", "da", "desde");
+  addLabel("to", "至", "to", "まで", "까지", "bis", "à", "a", "a");
+  addLabel("of", "之", "of", "中", "중", "von", "sur", "di", "de");
+  addLabel("records", "筆記錄", "records", "件の記録", "기록", "Datensätze", "enregistrements", "record", "registros");
+  addLabel("unbound", "未綁定", "unbound", "未紐付け", "연결 없음", "ungebunden", "non lié", "non vincolato", "sin vincular");
+
+  addLabel("Story Shape", "故事形狀", "Story Shape", "物語の形", "이야기 구조", "Story-Form", "Forme du récit", "Forma della storia", "Forma de la historia");
+  addLabel("Style Bible", "風格設定集", "Style Bible", "スタイル設定集", "스타일 바이블", "Stilbibel", "Bible de style", "Bibbia di stile", "Biblia de estilo");
+  addLabel("Storyline Mix", "故事線比例", "Storyline Mix", "物語線ミックス", "스토리라인 구성", "Storyline-Mix", "Mix des intrigues", "Mix trame", "Mezcla de líneas");
+  addLabel("Character Arcs", "角色弧線", "Character Arcs", "人物アーク", "인물 아크", "Figurenbögen", "Arcs de personnages", "Archi personaggio", "Arcos de personaje");
+  addLabel("Open Loops", "未解伏筆", "Open Loops", "未解決ループ", "열린 루프", "Offene Schleifen", "Boucles ouvertes", "Loop aperti", "Bucles abiertos");
+  addLabel("Restore defaults", "恢復預設", "Restore defaults", "既定値に戻す", "기본값 복원", "Standardwerte wiederherstellen", "Rétablir les valeurs par défaut", "Ripristina predefiniti", "Restaurar valores predeterminados");
+  addLabel("Restore Director's Desk fantasy defaults? Current Director's Desk values will be replaced.", "要恢復導演桌的奇幻小說預設值嗎？目前導演桌內容會被取代。", "Restore Director's Desk fantasy defaults? Current Director's Desk values will be replaced.", "ディレクター卓のファンタジー既定値に戻しますか？現在のディレクター卓の内容は置き換えられます。", "디렉터 데스크의 판타지 기본값을 복원할까요? 현재 디렉터 데스크 값이 대체됩니다.", "Die Fantasy-Standardwerte des Regiepults wiederherstellen? Die aktuellen Regiepult-Werte werden ersetzt.", "Rétablir les valeurs fantasy par défaut du Bureau de réalisation ? Les valeurs actuelles seront remplacées.", "Ripristinare i predefiniti fantasy del Banco regia? I valori attuali saranno sostituiti.", "¿Restaurar los valores de fantasía predeterminados de la Mesa de dirección? Se reemplazarán los valores actuales.");
+  addLabel("Premise", "前提", "Premise", "前提", "전제", "Prämisse", "Prémisse", "Premessa", "Premisa");
+  addLabel("Themes", "主題", "Themes", "テーマ", "주제", "Themen", "Thèmes", "Temi", "Temas");
+  addLabel("Narration", "敘事", "Narration", "語り", "서술", "Erzählung", "Narration", "Narrazione", "Narración");
+  addLabel("Tense", "時態", "Tense", "時制", "시제", "Zeitform", "Temps", "Tempo verbale", "Tiempo verbal");
+  addLabel("Unset", "未設定", "Unset", "未設定", "미설정", "Nicht gesetzt", "Non défini", "Non impostato", "Sin definir");
+  addLabel("Present", "現在式", "Present", "現在", "현재", "Präsens", "Présent", "Presente", "Presente");
+  addLabel("Past", "過去式", "Past", "過去", "과거", "Vergangenheit", "Passé", "Passato", "Pasado");
+  addLabel("Mixed", "混合", "Mixed", "混合", "혼합", "Gemischt", "Mixte", "Misto", "Mixto");
+  addLabel("Sentence Rhythm", "句子節奏", "Sentence Rhythm", "文のリズム", "문장 리듬", "Satzrhythmus", "Rythme des phrases", "Ritmo frase", "Ritmo de frases");
+  addLabel("Sensory Priority", "感官優先序", "Sensory Priority", "感覚の優先度", "감각 우선순위", "Sinnespriorität", "Priorité sensorielle", "Priorità sensoriale", "Prioridad sensorial");
+  addLabel("Metaphor Rules", "隱喻規則", "Metaphor Rules", "比喩ルール", "은유 규칙", "Metapherregeln", "Règles de métaphore", "Regole metafore", "Reglas de metáfora");
+  addLabel("Avoid", "避免", "Avoid", "避ける", "피하기", "Vermeiden", "À éviter", "Evita", "Evitar");
+  addLabel("Dialogue", "對話", "Dialogue", "会話", "대화", "Dialog", "Dialogue", "Dialogo", "Diálogo");
+  addLabel("+ line", "+ 故事線", "+ line", "+ ライン", "+ 라인", "+ Linie", "+ ligne", "+ linea", "+ línea");
+  addLabel("+ arc", "+ 弧線", "+ arc", "+ アーク", "+ 아크", "+ Bogen", "+ arc", "+ arco", "+ arco");
+  addLabel("+ loop", "+ 伏筆", "+ loop", "+ ループ", "+ 루프", "+ Schleife", "+ boucle", "+ loop", "+ bucle");
+  addLabel("ID", "ID", "ID", "ID", "ID", "ID", "ID", "ID", "ID");
+  addLabel("Role", "角色定位", "Role", "役割", "역할", "Rolle", "Rôle", "Ruolo", "Rol");
+  addLabel("Main", "主線", "Main", "メイン", "메인", "Haupt", "Principal", "Principale", "Principal");
+  addLabel("Secondary", "次要", "Secondary", "サブ", "보조", "Sekundär", "Secondaire", "Secondario", "Secundario");
+  addLabel("Shadow", "影子", "Shadow", "影", "그림자", "Schatten", "Ombre", "Ombra", "Sombra");
+  addLabel("Supporting", "支援", "Supporting", "支援", "지원", "Unterstützend", "Soutien", "Supporto", "Apoyo");
+  addLabel("Target %", "目標 %", "Target %", "目標 %", "목표 %", "Ziel %", "Cible %", "Target %", "Objetivo %");
+  addLabel("POV IDs", "視角 ID", "POV IDs", "POV ID", "POV ID", "POV-IDs", "ID de POV", "ID POV", "ID de POV");
+  addLabel("Promise", "承諾", "Promise", "約束", "약속", "Versprechen", "Promesse", "Promessa", "Promesa");
+  addLabel("Current Pressure", "目前壓力", "Current Pressure", "現在の圧力", "현재 압박", "Aktueller Druck", "Pression actuelle", "Pressione attuale", "Presión actual");
+  addLabel("actual", "實際", "actual", "実績", "실제", "tatsächlich", "réel", "effettivo", "real");
+  addLabel("target", "目標", "target", "目標", "목표", "Ziel", "cible", "target", "objetivo");
+  addLabel("No storylines yet", "尚無故事線", "No storylines yet", "物語線はまだありません", "아직 스토리라인 없음", "Noch keine Storylines", "Aucune intrigue", "Nessuna trama", "Aún no hay líneas");
+  addLabel("No arcs yet", "尚無弧線", "No arcs yet", "アークはまだありません", "아직 아크 없음", "Noch keine Bögen", "Aucun arc", "Nessun arco", "Aún no hay arcos");
+  addLabel("No loops yet", "尚無伏筆", "No loops yet", "ループはまだありません", "아직 루프 없음", "Noch keine Schleifen", "Aucune boucle", "Nessun loop", "Aún no hay bucles");
+  addLabel("open", "開啟", "open", "開く", "열기", "öffnen", "ouvrir", "apri", "abrir");
+  addLabel("Want", "想要", "Want", "欲求", "욕망", "Wunsch", "Désir", "Desiderio", "Deseo");
+  addLabel("Need", "需要", "Need", "必要", "필요", "Bedürfnis", "Besoin", "Bisogno", "Necesidad");
+  addLabel("Lie", "謊言", "Lie", "嘘", "거짓", "Lüge", "Mensonge", "Menzogna", "Mentira");
+  addLabel("Stage", "階段", "Stage", "段階", "단계", "Stufe", "Étape", "Fase", "Etapa");
+  addLabel("Next Beat", "下一拍", "Next Beat", "次のビート", "다음 비트", "Nächster Beat", "Prochain temps", "Prossimo beat", "Siguiente beat");
+  addLabel("Question", "問題", "Question", "問い", "질문", "Frage", "Question", "Domanda", "Pregunta");
+  addLabel("Importance", "重要性", "Importance", "重要度", "중요도", "Wichtigkeit", "Importance", "Importanza", "Importancia");
+  addLabel("Major", "重大", "Major", "大", "주요", "Groß", "Majeur", "Maggiore", "Mayor");
+  addLabel("Medium", "中等", "Medium", "中", "중간", "Mittel", "Moyen", "Medio", "Medio");
+  addLabel("Minor", "次要", "Minor", "小", "소규모", "Klein", "Mineur", "Minore", "Menor");
+  addLabel("Active", "活躍", "Active", "進行中", "활성", "Aktiv", "Actif", "Attivo", "Activo");
+  addLabel("Deepening", "深化中", "Deepening", "深化中", "심화 중", "Vertieft sich", "S'approfondit", "Si approfondisce", "Profundizando");
+  addLabel("Ready to Pay", "可兌現", "Ready to Pay", "回収準備完了", "회수 준비됨", "Bereit zur Einlösung", "Prêt à payer", "Pronto a pagare", "Listo para pagar");
+  addLabel("Closed", "已關閉", "Closed", "終了", "종결", "Geschlossen", "Clos", "Chiuso", "Cerrado");
+  addLabel("Raised In", "提出於", "Raised In", "提示箇所", "제기 위치", "Aufgeworfen in", "Soulevé dans", "Sollevato in", "Planteado en");
+  addLabel("Target Payoff", "目標回收", "Target Payoff", "目標回収", "목표 회수", "Zielauflösung", "Résolution cible", "Payoff target", "Resolución objetivo");
+
+  addLabel("Line", "故事線", "Line", "ライン", "라인", "Linie", "Ligne", "Linea", "Línea");
+  addLabel("Goal", "目標", "Goal", "目標", "목표", "Ziel", "Objectif", "Obiettivo", "Objetivo");
+  addLabel("Function", "功能", "Function", "機能", "기능", "Funktion", "Fonction", "Funzione", "Función");
+  addLabel("Canon", "正典", "Canon", "正史", "정본", "Kanon", "Canon", "Canone", "Canon");
+  addLabel("Scene Card", "場景卡", "Scene Card", "シーンカード", "장면 카드", "Szenenkarte", "Fiche de scène", "Scheda scena", "Ficha de escena");
+  addLabel("context", "脈絡", "context", "文脈", "맥락", "Kontext", "contexte", "contesto", "contexto");
+  addLabel("POV", "視角", "POV", "視点", "시점", "POV", "PDV", "POV", "POV");
+  addLabel("Unassigned", "未指派", "Unassigned", "未割り当て", "미지정", "Nicht zugewiesen", "Non assigné", "Non assegnato", "Sin asignar");
+  addLabel("Storylines", "故事線", "Storylines", "物語線", "스토리라인", "Storylines", "Intrigues", "Trame", "Líneas");
+  addLabel("No storylines in narrative blueprint", "敘事藍圖中尚無故事線", "No storylines in narrative blueprint", "物語設計図に物語線はありません", "서사 청사진에 스토리라인 없음", "Keine Storylines im Erzählplan", "Aucune intrigue dans le plan narratif", "Nessuna trama nel blueprint narrativo", "No hay líneas en el plan narrativo");
+  addLabel("Scene Type", "場景類型", "Scene Type", "シーン種別", "장면 유형", "Szenentyp", "Type de scène", "Tipo scena", "Tipo de escena");
+  addLabel("Setup", "鋪陳", "Setup", "セットアップ", "설정", "Aufbau", "Mise en place", "Setup", "Preparación");
+  addLabel("Reveal", "揭露", "Reveal", "開示", "드러냄", "Enthüllung", "Révélation", "Rivelazione", "Revelación");
+  addLabel("Turn", "轉折", "Turn", "転換", "전환", "Wendung", "Virage", "Svolta", "Giro");
+  addLabel("Payoff", "回收", "Payoff", "回収", "회수", "Auflösung", "Résolution", "Payoff", "Pago narrativo");
+  addLabel("Aftermath", "餘波", "Aftermath", "余波", "여파", "Nachspiel", "Conséquences", "Conseguenze", "Consecuencias");
+  addLabel("Bridge", "橋接", "Bridge", "橋渡し", "연결", "Brücke", "Pont", "Ponte", "Puente");
+  addLabel("Tension", "張力", "Tension", "緊張度", "긴장도", "Spannung", "Tension", "Tensione", "Tensión");
+  addLabel("Narrative Function", "敘事功能", "Narrative Function", "物語機能", "서사 기능", "Erzählfunktion", "Fonction narrative", "Funzione narrativa", "Función narrativa");
+  addLabel("Emotion", "情緒", "Emotion", "感情", "감정", "Emotion", "Émotion", "Emozione", "Emoción");
+  addLabel("Promises Raised", "提出的承諾", "Promises Raised", "提示した約束", "제기된 약속", "Aufgeworfene Versprechen", "Promesses soulevées", "Promesse aperte", "Promesas planteadas");
+  addLabel("Promises Paid", "兌現的承諾", "Promises Paid", "回収した約束", "회수된 약속", "Eingelöste Versprechen", "Promesses tenues", "Promesse mantenute", "Promesas pagadas");
+  addLabel("Summary", "摘要", "Summary", "要約", "요약", "Zusammenfassung", "Résumé", "Riepilogo", "Resumen");
+  addLabel("Style", "風格", "Style", "文体", "스타일", "Stil", "Style", "Stile", "Estilo");
+  addLabel("scene + neighboring chapters", "本場景 + 鄰近章節", "scene + neighboring chapters", "シーン + 近隣の章", "장면 + 인접 장", "Szene + benachbarte Kapitel", "scène + chapitres voisins", "scena + capitoli vicini", "escena + capítulos vecinos");
+  addLabel("basic context", "基本脈絡", "basic context", "基本文脈", "기본 맥락", "Basiskontext", "contexte de base", "contesto base", "contexto básico");
+  addLabel("unset", "未設定", "unset", "未設定", "미설정", "nicht gesetzt", "non défini", "non impostato", "sin definir");
+  addLabel("accept all", "全部接受", "accept all", "すべて承認", "모두 수락", "alle übernehmen", "tout accepter", "accetta tutto", "aceptar todo");
+  addLabel("discard", "捨棄", "discard", "破棄", "폐기", "verwerfen", "écarter", "scarta", "descartar");
+  addLabel("Snapshots", "快照", "Snapshots", "スナップショット", "스냅샷", "Schnappschüsse", "Instantanés", "Istantanee", "Instantáneas");
+  addLabel("accept", "接受", "accept", "承認", "수락", "übernehmen", "accepter", "accetta", "aceptar");
+  addLabel("drop", "移除", "drop", "削除", "제거", "entfernen", "retirer", "rimuovi", "quitar");
+  addLabel("— no plates · drop into source as ", "— 尚無圖版 · 可在原始碼放入 ", "— no plates · drop into source as ", "— 図版なし · ソースに挿入 ", "— 도판 없음 · 소스에 넣기 ", "— keine Tafeln · in Quelle einfügen als ", "— aucune planche · déposer dans la source comme ", "— nessuna tavola · inserisci nel sorgente come ", "— no hay láminas · inserta en la fuente como ");
 
   addLabel("+ blank", "+ 空白", "+ blank", "+ 空白", "+ 빈 항목", "+ leer", "+ vide", "+ vuoto", "+ en blanco");
   addLabel("+ snapshot", "+ 快照", "+ snapshot", "+ スナップショット", "+ 스냅샷", "+ Schnappschuss", "+ instantané", "+ istantanea", "+ instantánea");
@@ -296,7 +453,8 @@
     members: ["成員", "members", "構成員", "구성원", "Mitglieder", "membres", "membri", "miembros"],
     hands: ["人手", "hands", "人手", "손", "Hände", "mains", "mani", "manos"],
     lines: ["行", "lines", "行", "줄", "Zeilen", "lignes", "righe", "líneas"],
-    "recorded events": ["已記錄事件", "recorded events", "記録済み事件", "기록된 사건", "aufgezeichnete Ereignisse", "événements enregistrés", "eventi registrati", "eventos registrados"]
+    "recorded events": ["已記錄事件", "recorded events", "記録済み事件", "기록된 사건", "aufgezeichnete Ereignisse", "événements enregistrés", "eventi registrati", "eventos registrados"],
+    "open loops": ["未解伏筆", "open loops", "未解決ループ", "열린 루프", "offene Schleifen", "boucles ouvertes", "loop aperti", "bucles abiertos"]
   };
   const pluralLangOrder = ["zh-Hant", "en", "ja", "ko", "de", "fr", "it", "es"];
 
@@ -361,7 +519,7 @@
 
   function translatePattern(source, lang) {
     const raw = source.trim();
-    let m = raw.match(/^(\d[\d,\.]*) (volumes|chapters|drafted|words|events|souls|orders|realms|members|hands|lines|recorded events)$/i);
+    let m = raw.match(/^(\d[\d,\.]*) (volumes|chapters|drafted|words|events|souls|orders|realms|members|hands|lines|recorded events|open loops)$/i);
     if (m) {
       const words = pluralWords[m[2].toLowerCase()];
       const idx = pluralLangOrder.indexOf(lang);
@@ -374,6 +532,19 @@
       const unit = { "zh-Hant": "年", en: "y", ja: "年", ko: "년", de: "J", fr: "a", it: "a", es: "a" }[lang] || "y";
       return `± ${m[1]}${unit}`;
     }
+    m = raw.match(/^(.+) \/ (\d[\d,\.]*) of (\d[\d,\.]*)( records)?$/);
+    if (m) {
+      const suffix = m[4] ? ` ${tr("records", lang)}` : "";
+      return `${tr(m[1], lang)} / ${m[2]} ${tr("of", lang)} ${m[3]}${suffix}`;
+    }
+    m = raw.match(/^(P\d+(?:\/V\d+)?(?:\/E\d+)?(?:\/Ch\d+)?) to (P\d+(?:\/V\d+)?(?:\/E\d+)?(?:\/Ch\d+)?)$/);
+    if (m) return `${m[1]} ${tr("to", lang)} ${m[2]}`;
+    m = raw.match(/^([0-9]+)% target$/);
+    if (m) return `${m[1]}% ${tr("target", lang)}`;
+    m = raw.match(/^([0-9]+)% actual · (\d[\d,\.]*) chapters · (\d[\d,\.]*) words$/);
+    if (m) return `${m[1]}% ${tr("actual", lang)} · ${translatePattern(`${m[2]} chapters`, lang)} · ${translatePattern(`${m[3]} words`, lang)}`;
+    m = raw.match(/^Tension ([0-9]+)$/);
+    if (m) return `${tr("Tension", lang)} ${m[1]}`;
     m = raw.match(/^Book · (.+)$/);
     if (m) {
       const label = tr("Book", lang);
@@ -406,6 +577,8 @@
     if (m) return `${tr(m[1], lang)} · ${m[2]}`;
     m = raw.match(/^— no events near (.+) · showing earliest —$/);
     if (m) return `${tr("— no events near", lang)} ${m[1]} · ${tr("showing earliest", lang)} —`;
+    m = raw.match(/^— (.+)$/);
+    if (m && tableFor(m[1])) return `— ${tr(m[1], lang)}`;
     return null;
   }
 
@@ -861,9 +1034,25 @@
     }
   }
 
+  function updateSwitcherText(lang = currentLang) {
+    if (!switcherEl) return;
+    const label = switcherEl.querySelector("label");
+    const select = switcherEl.querySelector("select");
+    const languageLabel = tr("Language", lang);
+    if (label) label.textContent = languageLabel;
+    if (!select) return;
+    select.setAttribute("aria-label", languageLabel);
+    Array.from(select.options).forEach((opt) => {
+      const meta = LANGS.find((item) => item.code === opt.value);
+      if (meta) opt.textContent = languageOptionLabel(meta, lang);
+    });
+    select.value = lang;
+  }
+
   function createSwitcher() {
     if (document.querySelector(".i18n-switcher")) {
       switcherEl = document.querySelector(".i18n-switcher");
+      updateSwitcherText(currentLang);
       mountSwitcher();
       return;
     }
@@ -872,27 +1061,21 @@
     wrap.className = "i18n-switcher";
     wrap.setAttribute("data-i18n-ignore", "");
     const label = document.createElement("label");
-    label.textContent = tr("Language", currentLang);
     label.setAttribute("for", "aevenmere-language");
     const select = document.createElement("select");
     select.id = "aevenmere-language";
-    select.setAttribute("aria-label", "Language");
     LANGS.forEach((lang) => {
       const opt = document.createElement("option");
       opt.value = lang.code;
-      opt.textContent = `${lang.short} · ${lang.name}`;
       select.appendChild(opt);
     });
-    select.value = currentLang;
     select.addEventListener("change", () => setLang(select.value));
     wrap.append(label, select);
     switcherEl = wrap;
+    updateSwitcherText(currentLang);
     mountSwitcher();
     window.requestAnimationFrame(mountSwitcher);
-    onChange((lang) => {
-      select.value = lang;
-      label.textContent = tr("Language", lang);
-    });
+    onChange((lang) => updateSwitcherText(lang));
   }
 
   function start() {
@@ -926,6 +1109,7 @@
     get lang() { return currentLang; },
     setLang,
     t: tr,
+    languageName,
     yearLabel,
     apply,
     onChange

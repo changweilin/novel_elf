@@ -41,3 +41,21 @@ Before pushing public code, check that private files are not staged:
 ```powershell
 git status --short --untracked-files=all
 ```
+
+## Public GitHub Pages Demo
+
+GitHub Pages is built through `.github/workflows/pages.yml` using:
+
+```powershell
+npm run test
+npm run build:pages
+```
+
+The build writes `dist/runtime-config.js` with public-demo settings:
+
+- `readOnly: true`
+- `apiEnabled: false`
+- `aiEnabled: false`
+- `storageEnabled: false`
+
+That means the deployed site showcases the tracked demo world only. Local Markdown APIs, private story roots, browser storage writes, and concrete AI writing/sync actions remain local-workspace concerns.
