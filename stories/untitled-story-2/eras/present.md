@@ -11,7 +11,7 @@
   "accent": "#c89859",
   "blurb": "The first span of the story.",
   "body": "The first span of the story.",
-  "savedAt": "2026-05-22T14:52:29.163Z"
+  "savedAt": "2026-05-22T17:49:42.844Z"
 }
 ---
 The first span of the story.
