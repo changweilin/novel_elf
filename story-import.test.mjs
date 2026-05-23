@@ -27,6 +27,17 @@ test("blank import template does not create placeholder entities", async () => {
   assert.equal(parsed.world.library.books.length, 0);
 });
 
+test("blank import template follows the requested UI language", async () => {
+  const StoryImport = await loadStoryImport();
+  const zh = StoryImport.templateMarkdown("zh-Hant");
+  const es = StoryImport.templateMarkdown("es");
+
+  assert.match(zh, /^# Novel Elf 故事設定匯入/m);
+  assert.match(zh, /^## 故事$/m);
+  assert.match(es, /^# Importación de ajustes de historia Novel Elf/m);
+  assert.match(es, /^## Historia$/m);
+});
+
 test("filled import markdown maps setting sections into a Novel Elf world", async () => {
   const StoryImport = await loadStoryImport();
   const parsed = StoryImport.parseStoryMarkdown(`

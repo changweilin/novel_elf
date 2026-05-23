@@ -4,9 +4,99 @@
   const ACTIVE_KEY = "novelElf.activeStoryId.v1";
   const LEGACY_WORLD_KEY = "aevenmere.world.v2";
   const STATIC_STORIES_KEY = "novelElf.staticStories.v1";
+  const STORE_FALLBACK = "en";
+  const STORE_TEXT = {
+    "zh-Hant": {
+      untitledStory: "未命名故事",
+      newWiki: "新的 LLM Wiki",
+      present: "現在",
+      firstEra: "故事的第一個時段。",
+      storyline: "故事線"
+    },
+    en: {
+      untitledStory: "Untitled Story",
+      newWiki: "A new LLM wiki",
+      present: "Present",
+      firstEra: "The first span of the story.",
+      storyline: "Storyline"
+    },
+    ja: {
+      untitledStory: "無題の物語",
+      newWiki: "新しい LLM Wiki",
+      present: "現在",
+      firstEra: "物語の最初の期間。",
+      storyline: "物語線"
+    },
+    ko: {
+      untitledStory: "제목 없는 이야기",
+      newWiki: "새 LLM 위키",
+      present: "현재",
+      firstEra: "이야기의 첫 시간대.",
+      storyline: "스토리라인"
+    },
+    de: {
+      untitledStory: "Unbenannte Story",
+      newWiki: "Ein neues LLM-Wiki",
+      present: "Gegenwart",
+      firstEra: "Der erste Zeitraum der Story.",
+      storyline: "Storyline"
+    },
+    fr: {
+      untitledStory: "Histoire sans titre",
+      newWiki: "Un nouveau wiki LLM",
+      present: "Présent",
+      firstEra: "La première période de l'histoire.",
+      storyline: "Intrigue"
+    },
+    it: {
+      untitledStory: "Storia senza titolo",
+      newWiki: "Un nuovo wiki LLM",
+      present: "Presente",
+      firstEra: "Il primo arco temporale della storia.",
+      storyline: "Trama"
+    },
+    es: {
+      untitledStory: "Historia sin título",
+      newWiki: "Un nuevo wiki LLM",
+      present: "Presente",
+      firstEra: "El primer tramo temporal de la historia.",
+      storyline: "Línea"
+    }
+  };
 
   function runtime() {
     return window.NovelElfRuntime || {};
+  }
+
+  function storeLang(lang) {
+    const raw = String(lang || window.AEVEN_I18N?.lang || "").trim();
+    if (STORE_TEXT[raw]) return raw;
+    const lower = raw.toLowerCase();
+    if (lower === "zh" || lower === "zh-tw" || lower === "zh-hk" || lower === "zh-hant") return "zh-Hant";
+    if (lower.startsWith("ja")) return "ja";
+    if (lower.startsWith("ko")) return "ko";
+    if (lower.startsWith("de")) return "de";
+    if (lower.startsWith("fr")) return "fr";
+    if (lower.startsWith("it")) return "it";
+    if (lower.startsWith("es")) return "es";
+    return STORE_FALLBACK;
+  }
+
+  function storeText(key, lang) {
+    const code = storeLang(lang);
+    return STORE_TEXT[code]?.[key] || STORE_TEXT[STORE_FALLBACK][key] || key;
+  }
+
+  function localizedDefaultEra(start = 0, lang) {
+    return {
+      id: "present",
+      name: storeText("present", lang),
+      start,
+      end: start + 1,
+      compressed: 1,
+      accent: "#c89859",
+      blurb: storeText("firstEra", lang)
+    };
   }
 
   function isReadOnlyRuntime() {
@@ -44,21 +134,13 @@
 
   function normalizeWorld(input) {
     const source = clone(input) || {};
-    const eras = Array.isArray(source.eras) && source.eras.length ? source.eras : [{
-      id: "present",
-      name: "Present",
-      start: 0,
-      end: 1,
-      compressed: 1,
-      accent: "#c89859",
-      blurb: "The first span of the story."
-    }];
+    const eras = Array.isArray(source.eras) && source.eras.length ? source.eras : [localizedDefaultEra(0)];
 
     const world = {
       ...source,
       storyId: source.storyId || source.id || slugify(source.name || "untitled-story"),
-      name: source.name || "Untitled Story",
-      subtitle: source.subtitle || "A new LLM wiki",
+      name: source.name || storeText("untitledStory"),
+      subtitle: source.subtitle || storeText("newWiki"),
       defaultYear: Number.isFinite(Number(source.defaultYear)) ? Number(source.defaultYear) : inferDefaultYear(eras, source.events),
       regions: arr(source.regions),
       rivers: arr(source.rivers),
@@ -119,7 +201,7 @@
       storylines: arr(source.storylines).map((line, index) => ({
         ...line,
         id: line.id || `line_${index + 1}`,
-        name: line.name || line.id || `Storyline ${index + 1}`,
+        name: line.name || line.id || `${storeText("storyline")} ${index + 1}`,
         role: line.role || "supporting",
         targetShare: normalizeShare(line.targetShare),
         povIds: arr(line.povIds),
@@ -194,7 +276,7 @@
       ...(inputStory || {})
     };
     story.id = slugify(story.id || world.storyId || story.name, "story");
-    story.name = story.name || world.name || "Untitled Story";
+    story.name = story.name || world.name || storeText("untitledStory");
     story.subtitle = story.subtitle || world.subtitle || "";
     story.defaultYear = Number.isFinite(Number(story.defaultYear)) ? Number(story.defaultYear) : world.defaultYear;
     world.storyId = story.id;
@@ -232,9 +314,9 @@
       ? normalizeWorld(world)
       : sourceId
         ? clone(records.find((record) => record.id === sourceId)?.world || seed)
-        : normalizeWorld({ name: title || "Untitled Story", subtitle: subtitle || "", defaultYear: seed.defaultYear });
-    const id = uniqueStaticId(records, title || source.name || "Untitled Story");
-    const nextWorld = normalizeWorld({ ...source, storyId: id, name: title || source.name || "Untitled Story" });
+        : normalizeWorld({ name: title || storeText("untitledStory"), subtitle: subtitle || storeText("newWiki"), defaultYear: seed.defaultYear, eras: [localizedDefaultEra(seed.defaultYear)] });
+    const id = uniqueStaticId(records, title || source.name || storeText("untitledStory"));
+    const nextWorld = normalizeWorld({ ...source, storyId: id, name: title || source.name || storeText("untitledStory") });
     if (subtitle != null) nextWorld.subtitle = subtitle;
     const record = recordFromWorld(nextWorld, { id });
     const nextRecords = [...records, record];
@@ -275,7 +357,7 @@
     assertWritableRuntime();
     const seed = normalizeWorld(window.WORLD_SEED);
     let records = readStaticRecords(seed).filter((record) => record.id !== id);
-    if (!records.length) records = [recordFromWorld(normalizeWorld({ ...seed, storyId: "untitled-story", name: "Untitled Story" }))];
+    if (!records.length) records = [recordFromWorld(normalizeWorld({ ...seed, storyId: "untitled-story", name: storeText("untitledStory") }))];
     writeStaticRecords(records);
     saveActiveStoryId(records[0].id);
     return { ok: true, archived: id, stories: records.map((item) => item.story) };
@@ -416,9 +498,19 @@
   async function createStory({ title, subtitle, sourceId, world }, mode) {
     assertWritableRuntime();
     if (mode !== "api") return createStaticStory({ title, subtitle, sourceId, world });
+    let payloadWorld = world;
+    if (!payloadWorld && !sourceId) {
+      const seed = normalizeWorld(window.WORLD_SEED);
+      payloadWorld = normalizeWorld({
+        name: title || storeText("untitledStory"),
+        subtitle: subtitle || storeText("newWiki"),
+        defaultYear: seed.defaultYear,
+        eras: [localizedDefaultEra(seed.defaultYear)]
+      });
+    }
     return api("/api/stories", {
       method: "POST",
-      body: JSON.stringify({ title, subtitle, sourceId, world })
+      body: JSON.stringify({ title, subtitle, sourceId, world: payloadWorld })
     });
   }
 
@@ -472,7 +564,7 @@
     const id = world.storyId || slugify(world.name || "story");
     return {
       id,
-      name: world.name || "Untitled Story",
+      name: world.name || storeText("untitledStory"),
       subtitle: world.subtitle || "",
       defaultYear: world.defaultYear
     };
