@@ -12,7 +12,7 @@
   "status": "outline",
   "year": 0,
   "blurb": "What this book is for has not yet been written.",
-  "savedAt": "2026-05-22T17:49:42.844Z"
+  "savedAt": "2026-05-23T13:45:12.870Z"
 }
 ---
 What this book is for has not yet been written.

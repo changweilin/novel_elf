@@ -2,14 +2,23 @@
 {
   "schema": "novel-elf.story-md.v1",
   "kind": "chapter",
+  "__order": 0,
   "id": "ch_six_paths_01",
   "title": "第一章　月色下的第一道印",
   "year": 1209,
   "placeId": "pl_dusk_gorge",
   "povId": "ch_shen_ye",
-  "focusIds": ["ch_shen_ye", "ch_luo_yun"],
-  "eventIds": ["ev_red_moon_signal", "ev_hunt_01"],
-  "storylineIds": ["line_hunt_origin"],
+  "focusIds": [
+    "ch_shen_ye",
+    "ch_luo_yun"
+  ],
+  "eventIds": [
+    "ev_red_moon_signal",
+    "ev_hunt_01"
+  ],
+  "storylineIds": [
+    "line_hunt_origin"
+  ],
   "sceneType": "inciting",
   "narrativeFunction": "讓讀者認識「六道追獵」的獵令制度，並揭開第一樁看似獨立、實則相扣的異常事件。",
   "tensionLevel": 8,
@@ -22,8 +31,11 @@
   "promisePaid": [],
   "status": "draft",
   "words": 5600,
-  "sourceRefs": ["sop://write-story-from-llmwiki.sop.md#frontmatter"],
-  "illustrations": []
+  "sourceRefs": [
+    "sop://write-story-from-llmwiki.sop.md#frontmatter"
+  ],
+  "illustrations": [],
+  "savedAt": "2026-05-23T13:45:12.870Z"
 }
 ---
 夜色在霜河畔像一張濕漬的黑幕緩緩落下時，沈夜剛從巡夜塔下來，鞋底還帶著冰屑。  
@@ -402,5 +414,4 @@
 下一站，無疑是第二道。  
 他聞到一種很淡的鐵鏽味，像剛被打開的門在咬人。  
 「今晚的追獵才剛開始。」洛筠小聲說。  
-「知道。」沈夜看著逐漸出亮的東方，心裡只剩一句很清楚的字：**第三道，待時。**  
-
+「知道。」沈夜看著逐漸出亮的東方，心裡只剩一句很清楚的字：**第三道，待時。**

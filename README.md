@@ -86,7 +86,7 @@ node dev-server.mjs --host 127.0.0.1 --port 8789 --stories-root C:\Users\user\Do
 
 人類原始設定集請放在 `.local/source-settings/<story-id>/`，或放在專案外部的私人資料夾。LLMwiki 內容請放在 `.local/stories/<story-id>/`；只有公開展示用故事才放在 `stories/<story-id>/`。不要把原始設定集放進 LLMwiki 故事根目錄，因為故事儲存流程會管理該目錄內的 Markdown 檔。
 
-每次請 LLM 寫作前，先確認 `storyId`、`targetArticleId`、正式章節路徑、草稿路徑、要接續的文章，以及本次使用的背景資料來源。寫作流程必須記錄 sub-agent 與 skill：有專用 Codex story skill 就先使用；沒有時使用本專案 SOP 作為 project writing skill；正式寫作前至少派一個 continuity sub-agent 檢查世界觀、時間線、角色狀態與銜接風險。若無法使用 sub-agent 或 skill，任務必須標示為 `blocked`，不得宣稱符合 SOP。正式正文保存到 `library/<book-id>/<volume-id>/<chapter-id>.md`，草稿與版本保存在 `_drafts/articles/`。
+每次請 LLM 寫作前，先確認 `storyId`、`targetArticleId`、正式章節路徑、草稿路徑、要接續的文章，以及本次使用的背景資料來源。寫作流程必須記錄 sub-agent 與 skill：有專用 Codex story skill 就先使用；沒有時使用本專案 SOP 作為 project writing skill；正式寫作前至少派一個 continuity sub-agent 檢查世界觀、時間線、角色狀態與銜接風險。寫作時預設讀目標章全文、接續來源章、前 2 章內容或摘要、後 1 章摘要；更早內容則靠 `summary`、`continuityNotes`、`narrative.md`、事件索引、角色弧與 open loops 維持長期記憶。主要事件以 50,000 到 60,000 字為一個事件 arc 的 pacing 目標，寫作任務需記錄 `activeEventId`、目前累積字數與事件收束條件。若無法使用 sub-agent 或 skill，任務必須標示為 `blocked`，不得宣稱符合 SOP。正式正文保存到 `library/<book-id>/<volume-id>/<chapter-id>.md`，草稿與版本保存在 `_drafts/articles/`。
 
 ### 直接開啟特定入口
 
