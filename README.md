@@ -80,6 +80,14 @@ npm run dev:demo:lan
 node dev-server.mjs --host 127.0.0.1 --port 8789 --stories-root C:\Users\user\Documents\novel_elf_private_stories
 ```
 
+### LLMwiki 與寫作 SOP
+
+本專案把可被 UI、API 與 LLM 使用的故事資料稱為 LLMwiki，也就是每個故事底下的結構化 Markdown 目錄。若要把作者的人類設定集轉成 LLMwiki，請依照 [human-settings-to-llmwiki.sop.md](docs/sop/human-settings-to-llmwiki.sop.md)。若要根據 LLMwiki 撰寫或續寫正文，請依照 [write-story-from-llmwiki.sop.md](docs/sop/write-story-from-llmwiki.sop.md)。
+
+人類原始設定集請放在 `.local/source-settings/<story-id>/`，或放在專案外部的私人資料夾。LLMwiki 內容請放在 `.local/stories/<story-id>/`；只有公開展示用故事才放在 `stories/<story-id>/`。不要把原始設定集放進 LLMwiki 故事根目錄，因為故事儲存流程會管理該目錄內的 Markdown 檔。
+
+每次請 LLM 寫作前，先確認 `storyId`、`targetArticleId`、正式章節路徑、草稿路徑、要接續的文章，以及本次使用的背景資料來源。寫作流程必須記錄 sub-agent 與 skill：有專用 Codex story skill 就先使用；沒有時使用本專案 SOP 作為 project writing skill；正式寫作前至少派一個 continuity sub-agent 檢查世界觀、時間線、角色狀態與銜接風險。若無法使用 sub-agent 或 skill，任務必須標示為 `blocked`，不得宣稱符合 SOP。正式正文保存到 `library/<book-id>/<volume-id>/<chapter-id>.md`，草稿與版本保存在 `_drafts/articles/`。
+
 ### 直接開啟特定入口
 
 ```text
@@ -129,6 +137,7 @@ novel_elf/
 ├─ ai.js                              # AI 生成與續寫輔助函式
 ├─ *.css                              # 桌面、行動、時間軸、書庫與 Codex 樣式
 ├─ *.test.mjs                         # Node 內建測試
+├─ docs/sop/                          # LLMwiki 轉換與寫作 SOP
 ├─ stories/                           # 可提交的公開展示故事資料
 ├─ assets/                            # 品牌圖示與世界地圖素材
 ├─ screenshots/                       # README/展示用畫面截圖
@@ -145,16 +154,18 @@ novel_elf/
 ├─ story.md
 ├─ atlas.md
 ├─ relationships.md
+├─ narrative.md
 ├─ eras/
 ├─ places/
 ├─ events/
 ├─ characters/
 ├─ organizations/
 ├─ countries/
-└─ library/
+├─ library/
+└─ _drafts/articles/
 ```
 
-`stories/` 目錄用於公開展示；`.local/stories/`、`private-stories/` 與 `stories-private/` 則保留給私人寫作資料，預設不會被 Git 追蹤。
+`stories/` 目錄用於公開展示；`.local/stories/`、`private-stories/` 與 `stories-private/` 則保留給私人寫作資料，預設不會被 Git 追蹤。人類原始設定集建議放在 `.local/source-settings/<story-id>/` 或專案外部資料夾，與 LLMwiki 故事根目錄分開保存。
 
 ## 授權條款
 
